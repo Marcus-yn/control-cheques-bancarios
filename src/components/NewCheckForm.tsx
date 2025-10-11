@@ -1,4 +1,7 @@
+<<<<<<< HEAD
 import React from 'react';
+=======
+>>>>>>> 51c1fb7aa3f98304f5976a475b7846972ca315ba
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
@@ -9,19 +12,59 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Badge } from './ui/badge';
 import { AlertCircle, Calculator, FileText, ArrowLeft, Save } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
+<<<<<<< HEAD
 import { toast } from 'sonner';
+=======
+import { toast } from 'sonner@2.0.3';
+>>>>>>> 51c1fb7aa3f98304f5976a475b7846972ca315ba
 import { getBankIcon } from './ui/smart-icons';
 
 interface NewCheckFormProps {
   onNavigate: (screen: string) => void;
 }
 
+<<<<<<< HEAD
 // Eliminar mockups y usar datos reales del backend
 
 export function NewCheckForm({ onNavigate }: NewCheckFormProps) {
   const [accounts, setAccounts] = useState<any[]>([]);
   const [checkbooks, setCheckbooks] = useState<any[]>([]);
   const [beneficiaries, setBeneficiaries] = useState<string[]>([]);
+=======
+const mockAccounts = [
+  { id: '1', name: 'Cuenta Principal - Banco Agromercantil (BAM)', balance: 387500, currency: 'GTQ', bank: 'BAM' },
+  { id: '2', name: 'Cuenta Operativa - Banco Industrial (BI)', balance: 125000, currency: 'GTQ', bank: 'BI' },
+  { id: '3', name: 'Cuenta Dólares - BAC Credomatic', balance: 45000, currency: 'USD', bank: 'BAC' },
+  { id: '4', name: 'Cuenta Nómina - Banrural', balance: 98750, currency: 'GTQ', bank: 'BANRURAL' },
+  { id: '5', name: 'Cuenta Comercial - G&T Continental', balance: 256300, currency: 'GTQ', bank: 'GYT' },
+  { id: '6', name: 'Cuenta USD - Banco Promerica', balance: 78200, currency: 'USD', bank: 'PROMERICA' },
+  { id: '7', name: 'Cuenta Empresarial - Banco Internacional', balance: 145600, currency: 'GTQ', bank: 'INTERNACIONAL' },
+  { id: '8', name: 'Cuenta Microempresa - Vivibanco', balance: 89400, currency: 'GTQ', bank: 'VIVIBANCO' }
+];
+
+const mockCheckbooks = [
+  { id: '1', name: 'CHQ-BAM-001', accountId: '1', startNumber: 1240, endNumber: 1300, nextNumber: 1246, bank: 'BAM' },
+  { id: '2', name: 'CHQ-BI-002', accountId: '2', startNumber: 1001, endNumber: 1100, nextNumber: 1025, bank: 'BI' },
+  { id: '3', name: 'CHQ-BAC-USD-001', accountId: '3', startNumber: 5001, endNumber: 5100, nextNumber: 5012, bank: 'BAC' },
+  { id: '4', name: 'CHQ-BANRURAL-003', accountId: '4', startNumber: 2050, endNumber: 2150, nextNumber: 2078, bank: 'BANRURAL' },
+  { id: '5', name: 'CHQ-GYT-004', accountId: '5', startNumber: 3200, endNumber: 3300, nextNumber: 3245, bank: 'GYT' },
+  { id: '6', name: 'CHQ-PROM-USD-002', accountId: '6', startNumber: 6001, endNumber: 6100, nextNumber: 6023, bank: 'PROMERICA' },
+  { id: '7', name: 'CHQ-INT-005', accountId: '7', startNumber: 4100, endNumber: 4200, nextNumber: 4156, bank: 'INTERNACIONAL' },
+  { id: '8', name: 'CHQ-VIVI-006', accountId: '8', startNumber: 7500, endNumber: 7600, nextNumber: 7534, bank: 'VIVIBANCO' }
+];
+
+const mockBeneficiaries = [
+  'Proveedores Guatemala S.A.',
+  'Servicios Generales Ltda.',
+  'Transportes Rápidos',
+  'Suministros de Oficina',
+  'Nómina Empleados',
+  'Servicios Públicos',
+  'Mantenimiento Industrial'
+];
+
+export function NewCheckForm({ onNavigate }: NewCheckFormProps) {
+>>>>>>> 51c1fb7aa3f98304f5976a475b7846972ca315ba
   const [selectedAccount, setSelectedAccount] = useState('');
   const [selectedCheckbook, setSelectedCheckbook] = useState('');
   const [checkNumber, setCheckNumber] = useState('');
@@ -33,6 +76,7 @@ export function NewCheckForm({ onNavigate }: NewCheckFormProps) {
   const [loading, setLoading] = useState(false);
   const [filteredBeneficiaries, setFilteredBeneficiaries] = useState<string[]>([]);
 
+<<<<<<< HEAD
   // Obtener cuentas y chequeras reales del backend
   useEffect(() => {
     fetch('http://localhost:3001/api/cuentas')
@@ -53,6 +97,15 @@ export function NewCheckForm({ onNavigate }: NewCheckFormProps) {
   useEffect(() => {
     if (selectedCheckbook && autoCheckNumber) {
       const checkbook = checkbooks.find(cb => cb.id === selectedCheckbook);
+=======
+  const availableCheckbooks = mockCheckbooks.filter(cb => cb.accountId === selectedAccount);
+  const currentAccount = mockAccounts.find(acc => acc.id === selectedAccount);
+  const currentCheckbook = mockCheckbooks.find(cb => cb.id === selectedCheckbook);
+
+  useEffect(() => {
+    if (selectedCheckbook && autoCheckNumber) {
+      const checkbook = mockCheckbooks.find(cb => cb.id === selectedCheckbook);
+>>>>>>> 51c1fb7aa3f98304f5976a475b7846972ca315ba
       if (checkbook) {
         setCheckNumber(checkbook.nextNumber.toString().padStart(6, '0'));
       }
@@ -61,7 +114,11 @@ export function NewCheckForm({ onNavigate }: NewCheckFormProps) {
 
   useEffect(() => {
     if (beneficiary) {
+<<<<<<< HEAD
       const filtered = beneficiaries.filter(b => 
+=======
+      const filtered = mockBeneficiaries.filter(b => 
+>>>>>>> 51c1fb7aa3f98304f5976a475b7846972ca315ba
         b.toLowerCase().includes(beneficiary.toLowerCase())
       );
       setFilteredBeneficiaries(filtered);
@@ -109,11 +166,16 @@ export function NewCheckForm({ onNavigate }: NewCheckFormProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+<<<<<<< HEAD
+=======
+    
+>>>>>>> 51c1fb7aa3f98304f5976a475b7846972ca315ba
     const errors = validateForm();
     if (errors.length > 0) {
       errors.forEach(error => toast.error(error));
       return;
     }
+<<<<<<< HEAD
     setLoading(true);
     // Registrar cheque en el backend
     try {
@@ -142,6 +204,17 @@ export function NewCheckForm({ onNavigate }: NewCheckFormProps) {
       toast.error('Error de conexión al backend');
       setLoading(false);
     }
+=======
+    
+    setLoading(true);
+    
+    // Simulate API call
+    setTimeout(() => {
+      toast.success('Cheque registrado correctamente');
+      setLoading(false);
+      onNavigate('checks');
+    }, 1500);
+>>>>>>> 51c1fb7aa3f98304f5976a475b7846972ca315ba
   };
 
   const newBalance = calculateNewBalance();
@@ -189,6 +262,7 @@ export function NewCheckForm({ onNavigate }: NewCheckFormProps) {
                         <SelectValue placeholder="Seleccionar cuenta" />
                       </SelectTrigger>
                       <SelectContent>
+<<<<<<< HEAD
                         {loading && (
                           <div className="px-4 py-2 text-muted-foreground">Cargando cuentas...</div>
                         )}
@@ -196,6 +270,9 @@ export function NewCheckForm({ onNavigate }: NewCheckFormProps) {
                           <div className="px-4 py-2 text-muted-foreground">No hay cuentas disponibles</div>
                         )}
                         {!loading && accounts.length > 0 && accounts.map((account) => {
+=======
+                        {mockAccounts.map((account) => {
+>>>>>>> 51c1fb7aa3f98304f5976a475b7846972ca315ba
                           const BankIcon = getBankIcon(account.bank);
                           return (
                             <SelectItem key={account.id} value={account.id}>
@@ -226,6 +303,7 @@ export function NewCheckForm({ onNavigate }: NewCheckFormProps) {
                         <SelectValue placeholder="Seleccionar chequera" />
                       </SelectTrigger>
                       <SelectContent>
+<<<<<<< HEAD
                         {loading && (
                           <div className="px-4 py-2 text-muted-foreground">Cargando chequeras...</div>
                         )}
@@ -233,6 +311,9 @@ export function NewCheckForm({ onNavigate }: NewCheckFormProps) {
                           <div className="px-4 py-2 text-muted-foreground">No hay chequeras disponibles</div>
                         )}
                         {!loading && availableCheckbooks.length > 0 && availableCheckbooks.map((checkbook) => {
+=======
+                        {availableCheckbooks.map((checkbook) => {
+>>>>>>> 51c1fb7aa3f98304f5976a475b7846972ca315ba
                           const BankIcon = getBankIcon(checkbook.bank);
                           return (
                             <SelectItem key={checkbook.id} value={checkbook.id}>

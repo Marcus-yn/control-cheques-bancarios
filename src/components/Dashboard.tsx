@@ -18,7 +18,10 @@ import {
   Sparkles
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
+<<<<<<< HEAD
 import React from "react";
+=======
+>>>>>>> 51c1fb7aa3f98304f5976a475b7846972ca315ba
 import { motion } from 'motion/react';
 
 interface DashboardProps {

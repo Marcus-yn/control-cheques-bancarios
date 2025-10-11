@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 interface Cheque {
   id: number;
   number: string;
@@ -11,6 +12,8 @@ interface Cheque {
   bank: string;
   currency: string;
 }
+=======
+>>>>>>> 51c1fb7aa3f98304f5976a475b7846972ca315ba
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
@@ -35,9 +38,14 @@ import {
   Clock,
   CheckCheck
 } from 'lucide-react';
+<<<<<<< HEAD
 import { toast } from 'sonner';
 import { motion } from 'motion/react';
 import React from "react";
+=======
+import { toast } from 'sonner@2.0.3';
+import { motion } from 'motion/react';
+>>>>>>> 51c1fb7aa3f98304f5976a475b7846972ca315ba
 import { getBankIcon } from './ui/smart-icons';
 
 interface ChecksListProps {
@@ -100,12 +108,16 @@ const mockChecks = [
 ];
 
 export function ChecksList({ onNavigate }: ChecksListProps) {
+<<<<<<< HEAD
   const [checks, setChecks] = useState<Cheque[]>([]);
   React.useEffect(() => {
     fetch('http://localhost:3001/api/cheques')
       .then(res => res.json())
       .then(data => setChecks(data));
   }, []);
+=======
+  const [checks, setChecks] = useState(mockChecks);
+>>>>>>> 51c1fb7aa3f98304f5976a475b7846972ca315ba
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('todos');
   const [dateFrom, setDateFrom] = useState('');
@@ -151,6 +163,7 @@ export function ChecksList({ onNavigate }: ChecksListProps) {
   };
 
   const handleStatusChange = (checkId: number, newStatus: string) => {
+<<<<<<< HEAD
     fetch(`http://localhost:3001/api/cheques/${checkId}/estado`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -172,6 +185,19 @@ export function ChecksList({ onNavigate }: ChecksListProps) {
         }
       })
       .catch(() => toast.error('Error de conexión al backend'));
+=======
+    setChecks(prev => prev.map(check => 
+      check.id === checkId ? { ...check, status: newStatus } : check
+    ));
+    
+    const statusMessages = {
+      'cobrado': '✅ Cheque marcado como cobrado',
+      'anulado': '❌ Cheque anulado correctamente',
+      'pendiente': '⏰ Cheque marcado como pendiente'
+    };
+    
+    toast.success(statusMessages[newStatus as keyof typeof statusMessages] || 'Estado actualizado');
+>>>>>>> 51c1fb7aa3f98304f5976a475b7846972ca315ba
   };
 
   const filteredChecks = checks.filter(check => {

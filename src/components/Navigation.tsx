@@ -1,5 +1,9 @@
+<<<<<<< HEAD
 import React from 'react';
 import { useState, useEffect } from 'react';
+=======
+import { useState } from 'react';
+>>>>>>> 51c1fb7aa3f98304f5976a475b7846972ca315ba
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from './ui/sheet';
@@ -15,17 +19,24 @@ import {
   Menu,
   Plus,
   User,
+<<<<<<< HEAD
   Users,
+=======
+>>>>>>> 51c1fb7aa3f98304f5976a475b7846972ca315ba
   Home,
   List,
   DollarSign,
   CheckCircle2,
   PieChart,
   UserCog,
+<<<<<<< HEAD
   Wallet,
   Building2,
   Receipt,
   Banknote
+=======
+  Wallet
+>>>>>>> 51c1fb7aa3f98304f5976a475b7846972ca315ba
 } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -37,6 +48,7 @@ interface NavigationProps {
 }
 
 const menuItems = [
+<<<<<<< HEAD
   {
     id: 'new-account',
     label: 'Registrar Cuenta',
@@ -47,6 +59,8 @@ const menuItems = [
     color: 'from-green-500 to-blue-500',
     roles: ['admin', 'user']
   },
+=======
+>>>>>>> 51c1fb7aa3f98304f5976a475b7846972ca315ba
   { 
     id: 'dashboard', 
     label: '🏠 Mi Escritorio', 
@@ -57,6 +71,7 @@ const menuItems = [
     color: 'from-blue-500 to-cyan-500',
     roles: ['admin', 'user']
   },
+<<<<<<< HEAD
   {
     id: 'accounts',
     label: 'Mis Cuentas',
@@ -67,6 +82,8 @@ const menuItems = [
     color: 'from-emerald-500 to-teal-500',
     roles: ['admin', 'user']
   },
+=======
+>>>>>>> 51c1fb7aa3f98304f5976a475b7846972ca315ba
   { 
     id: 'checks', 
     label: '📄 Mis Cheques', 
@@ -88,6 +105,7 @@ const menuItems = [
     roles: ['admin', 'user']
   },
   { 
+<<<<<<< HEAD
     id: 'transactions', 
     label: '💰 Transacciones', 
     description: 'Notas y movimientos',
@@ -98,6 +116,8 @@ const menuItems = [
     roles: ['admin', 'user']
   },
   { 
+=======
+>>>>>>> 51c1fb7aa3f98304f5976a475b7846972ca315ba
     id: 'new-deposit', 
     label: '💰 Depositar Dinero', 
     description: 'Registrar un depósito',
@@ -128,6 +148,7 @@ const menuItems = [
     roles: ['admin', 'user']
   },
   { 
+<<<<<<< HEAD
     id: 'beneficiaries', 
     label: '👥 Beneficiarios', 
     description: 'Gestión de favoritos',
@@ -138,6 +159,8 @@ const menuItems = [
     roles: ['admin', 'user']
   },
   { 
+=======
+>>>>>>> 51c1fb7aa3f98304f5976a475b7846972ca315ba
     id: 'settings', 
     label: '⚙️ Configurar', 
     description: 'Ajustes del sistema',
@@ -154,6 +177,7 @@ export function Navigation({ currentScreen, onNavigate, onLogout, userRole }: Na
 
   const filteredMenuItems = menuItems.filter(item => item.roles.includes(userRole));
 
+<<<<<<< HEAD
   // Debug: log cuando se abre/cierra el menú
   useEffect(() => {
     console.log('Menu state changed:', isOpen);
@@ -161,6 +185,11 @@ export function Navigation({ currentScreen, onNavigate, onLogout, userRole }: Na
 
   const NavContent = () => (
     <div className="flex flex-col h-full bg-gradient-to-b from-white to-gray-50">
+=======
+  const NavContent = () => (
+    <TooltipProvider>
+      <div className="flex flex-col h-full bg-gradient-to-b from-white to-gray-50">
+>>>>>>> 51c1fb7aa3f98304f5976a475b7846972ca315ba
         {/* Logo and Title Súper Visual */}
         <motion.div 
           initial={{ opacity: 0, y: -20 }}
@@ -380,12 +409,22 @@ export function Navigation({ currentScreen, onNavigate, onLogout, userRole }: Na
           </motion.div>
         </div>
       </div>
+<<<<<<< HEAD
   );
 
   return (
     <TooltipProvider>
       {/* Desktop Sidebar */}
       <div className="hidden lg:block w-80 bg-card border-r h-screen overflow-y-auto scrollbar-thin">
+=======
+    </TooltipProvider>
+  );
+
+  return (
+    <>
+      {/* Desktop Sidebar */}
+      <div className="hidden lg:block w-80 bg-card border-r h-screen overflow-y-auto">
+>>>>>>> 51c1fb7aa3f98304f5976a475b7846972ca315ba
         <NavContent />
       </div>
 
@@ -393,6 +432,7 @@ export function Navigation({ currentScreen, onNavigate, onLogout, userRole }: Na
       <div className="lg:hidden">
         <Sheet open={isOpen} onOpenChange={setIsOpen}>
           <SheetTrigger asChild>
+<<<<<<< HEAD
             <motion.div
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
@@ -419,6 +459,25 @@ export function Navigation({ currentScreen, onNavigate, onLogout, userRole }: Na
             </motion.div>
           </SheetTrigger>
           <SheetContent side="left" className="w-80 p-0 scrollbar-thin">
+=======
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="fixed top-4 left-4 z-50 bg-card border rounded-lg shadow-md lg:hidden"
+                  aria-label="Abrir menú de navegación"
+                >
+                  <Menu className="h-5 w-5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="right">
+                <p className="text-sm">📱 ¡Toca para abrir el menú!</p>
+              </TooltipContent>
+            </Tooltip>
+          </SheetTrigger>
+          <SheetContent side="left" className="w-80 p-0">
+>>>>>>> 51c1fb7aa3f98304f5976a475b7846972ca315ba
             <SheetTitle className="sr-only">Menú de Navegación</SheetTitle>
             <SheetDescription className="sr-only">
               Menú de navegación principal del sistema de control de chequeras
@@ -429,6 +488,7 @@ export function Navigation({ currentScreen, onNavigate, onLogout, userRole }: Na
       </div>
 
       {/* Mobile Header */}
+<<<<<<< HEAD
       <div className="lg:hidden bg-white border-b border-gray-200 p-4 pl-16 shadow-sm">
         <div className="flex items-center justify-between">
           <div>
@@ -451,3 +511,22 @@ export function Navigation({ currentScreen, onNavigate, onLogout, userRole }: Na
 }
 // ...existing code...
 // ...aquí va solo la versión que tú proporcionaste, ya sin duplicados...
+=======
+      <div className="lg:hidden bg-card border-b p-4 pl-16">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="font-semibold">Control de Chequeras</h1>
+            <p className="text-sm text-muted-foreground">Sistema Bancario</p>
+          </div>
+          <Badge 
+            variant={userRole === 'admin' ? 'default' : 'secondary'} 
+            className="text-xs"
+          >
+            {userRole === 'admin' ? 'Admin' : 'Usuario'}
+          </Badge>
+        </div>
+      </div>
+    </>
+  );
+}
+>>>>>>> 51c1fb7aa3f98304f5976a475b7846972ca315ba
