@@ -57,7 +57,6 @@ export function ChecksList({ onNavigate }: ChecksListProps) {
       .then(res => res.json())
       .then(data => setChecks(data));
   }, []);
-
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'pendiente':
@@ -171,6 +170,122 @@ export function ChecksList({ onNavigate }: ChecksListProps) {
   return (
     <TooltipProvider>
       <div className="space-y-8">
+<<<<<<< HEAD
+        {/* Encabezado visual igual que otros módulos */}
+        <Card className="rounded-2xl border-0 shadow-lg bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 text-white">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-4 text-3xl font-bold">
+              <div className="w-14 h-14 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-2xl flex items-center justify-center animate-bounce">
+                <Wallet className="h-8 w-8 text-white" />
+              </div>
+              Mis cheques
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className="h-6 w-6 text-pink-200 cursor-pointer" />
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  <span>Consulta, filtra y exporta tus cheques registrados.</span>
+                </TooltipContent>
+              </Tooltip>
+            </CardTitle>
+            <p className="text-white/90 text-lg mt-2">Visualiza todos tus cheques, cambia su estado y exporta reportes.</p>
+          </CardHeader>
+          <CardContent>
+            {/* Filtros de búsqueda y estado */}
+            <div className="flex flex-wrap gap-4 mb-6 items-end">
+              <div>
+                <Label htmlFor="search">Buscar</Label>
+                <Input id="search" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Número o beneficiario" className="w-48" />
+              </div>
+              <div>
+                <Label htmlFor="status">Estado</Label>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-40">
+                    <SelectValue placeholder="Estado" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos</SelectItem>
+                    <SelectItem value="pendiente">Pendiente</SelectItem>
+                    <SelectItem value="cobrado">Cobrado</SelectItem>
+                    <SelectItem value="anulado">Anulado</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="dateFrom">Desde</Label>
+                <Input id="dateFrom" type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-36" />
+              </div>
+              <div>
+                <Label htmlFor="dateTo">Hasta</Label>
+                <Input id="dateTo" type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="w-36" />
+              </div>
+              <Button className="bg-gradient-to-r from-green-500 to-blue-500 text-white font-bold px-6 py-3 rounded-xl shadow-lg hover:scale-105 transition-all" onClick={exportToCSV}>
+                <Download className="w-5 h-5 mr-2" /> Exportar CSV
+              </Button>
+            </div>
+            {/* Tabla/lista de cheques */}
+            <div className="overflow-x-auto rounded-2xl shadow-lg bg-white text-gray-900">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gradient-to-r from-blue-100 to-indigo-100">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-700">Número</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-700">Fecha</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-700">Beneficiario</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-700">Monto</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-700">Concepto</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-700">Estado</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-700">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredChecks.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="text-center py-8 text-gray-500">No hay cheques registrados.</td>
+                    </tr>
+                  ) : (
+                    filteredChecks.map(check => (
+                      <tr key={check.id} className="hover:bg-blue-50 transition-all">
+                        <td className="px-4 py-3 font-mono font-bold">{check.number}</td>
+                        <td className="px-4 py-3">{check.date}</td>
+                        <td className="px-4 py-3">{check.beneficiary}</td>
+                        <td className="px-4 py-3 font-bold">{formatCurrency(check.amount, check.currency)}</td>
+                        <td className="px-4 py-3">{check.concept}</td>
+                        <td className="px-4 py-3">{getStatusBadge(check.status)}</td>
+                        <td className="px-4 py-3 flex gap-2">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button variant="ghost" size="sm" onClick={() => handleStatusChange(check.id, 'cobrado')}>
+                                <CheckCircle2 className="h-5 w-5 text-green-600" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Cobrar</TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button variant="ghost" size="sm" onClick={() => handleStatusChange(check.id, 'anulado')}>
+                                <XCircle className="h-5 w-5 text-red-600" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Anular</TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button variant="ghost" size="sm" onClick={() => handleStatusChange(check.id, 'pendiente')}>
+                                <Clock className="h-5 w-5 text-yellow-600" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Pendiente</TooltipContent>
+                          </Tooltip>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+=======
         {/* Header con botón explicativo */}
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
@@ -355,7 +470,7 @@ export function ChecksList({ onNavigate }: ChecksListProps) {
           </Card>
         </motion.div>
 
-        {/* Resumen Visual */}
+        {/* Resumen Súper Visual */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -383,6 +498,7 @@ export function ChecksList({ onNavigate }: ChecksListProps) {
                 <p className="text-2xl font-bold text-green-700">
                   {formatCurrency(filteredChecks.reduce((sum, check) => {
                     if (check.status !== 'anulado') {
+                      // Convert USD to GTQ for total calculation (assuming 1 USD = 7.75 GTQ)
                       const amount = check.currency === 'USD' ? check.amount * 7.75 : check.amount;
                       return sum + amount;
                     }
@@ -471,7 +587,7 @@ export function ChecksList({ onNavigate }: ChecksListProps) {
                       </div>
                     </div>
 
-                    {/* Monto y acciones */}
+                    {/* Monto y acciones con tooltips */}
                     <div className="flex items-center gap-6">
                       <div className="text-right">
                         <p className="text-3xl font-bold text-gray-800">
@@ -491,6 +607,7 @@ export function ChecksList({ onNavigate }: ChecksListProps) {
                                     size="sm"
                                     onClick={() => setSelectedCheck(check)}
                                     className="h-12 w-12 rounded-xl bg-blue-100 hover:bg-blue-200 text-blue-600"
+                                    aria-label={`Ver detalles del cheque ${check.number}`}
                                   >
                                     <Eye className="h-5 w-5" />
                                   </Button>
@@ -553,6 +670,7 @@ export function ChecksList({ onNavigate }: ChecksListProps) {
                                     size="sm"
                                     className="h-12 w-12 rounded-xl bg-green-100 hover:bg-green-200 text-green-600"
                                     onClick={() => handleStatusChange(check.id, 'cobrado')}
+                                    aria-label={`Marcar cheque ${check.number} como cobrado`}
                                   >
                                     <CheckCircle2 className="h-5 w-5" />
                                   </Button>
@@ -572,6 +690,7 @@ export function ChecksList({ onNavigate }: ChecksListProps) {
                                         variant="ghost"
                                         size="sm"
                                         className="h-12 w-12 rounded-xl bg-red-100 hover:bg-red-200 text-red-600"
+                                        aria-label={`Anular cheque ${check.number}`}
                                       >
                                         <XCircle className="h-5 w-5" />
                                       </Button>
@@ -646,6 +765,7 @@ export function ChecksList({ onNavigate }: ChecksListProps) {
             </Card>
           </motion.div>
         )}
+>>>>>>> 51c1fb7aa3f98304f5976a475b7846972ca315ba
       </div>
     </TooltipProvider>
   );
