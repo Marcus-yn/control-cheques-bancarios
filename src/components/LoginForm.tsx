@@ -1,8 +1,4 @@
-<<<<<<< HEAD
 import React, { useState } from 'react';
-=======
-import { useState } from 'react';
->>>>>>> 51c1fb7aa3f98304f5976a475b7846972ca315ba
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';

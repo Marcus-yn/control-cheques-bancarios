@@ -18,7 +18,8 @@ import {
   ArrowLeft,
   Calculator
 } from 'lucide-react';
-import { toast } from 'sonner@2.0.3';
+import React from 'react';
+import { toast } from 'sonner';
 
 interface ReconciliationProps {
   onNavigate: (screen: string) => void;
@@ -249,7 +250,7 @@ export function Reconciliation({ onNavigate }: ReconciliationProps) {
                       <Checkbox
                         id={`check-${check.id}`}
                         checked={check.selected}
-                        onCheckedChange={(checked) => 
+                        onCheckedChange={(checked: boolean) =>
                           handleCheckSelection(check.id, checked as boolean)
                         }
                       />

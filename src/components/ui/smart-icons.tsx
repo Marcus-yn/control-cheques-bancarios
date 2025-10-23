@@ -38,8 +38,10 @@ export const getRandomBankIcon = () => {
 };
 
 export const getBankIcon = (bankName: string) => {
+  if (!bankName || typeof bankName !== 'string') {
+    return BankIcons.DEFAULT;
+  }
   const upperName = bankName.toUpperCase();
-  
   if (upperName.includes('INDUSTRIAL')) return BankIcons.BI;
   if (upperName.includes('AMERICA')) return BankIcons.BAC;
   if (upperName.includes('RURAL')) return BankIcons.BANRURAL;
@@ -52,6 +54,5 @@ export const getBankIcon = (bankName: string) => {
   if (upperName.includes('CHN')) return BankIcons.CHN;
   if (upperName.includes('INMOBILIARIO')) return BankIcons.INMOBILIARIO;
   if (upperName.includes('CITI')) return BankIcons.CITIBANK;
-  
   return BankIcons.DEFAULT;
 };

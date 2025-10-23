@@ -1,27 +1,17 @@
-<<<<<<< HEAD
 import React from "react";
-=======
->>>>>>> 51c1fb7aa3f98304f5976a475b7846972ca315ba
 import { useState, useEffect } from 'react';
 import { Toaster } from './components/ui/sonner';
 import { LoginForm } from './components/LoginForm';
 import { Navigation } from './components/Navigation';
 import { Dashboard } from './components/Dashboard';
 import { ChecksList } from './components/ChecksList';
-<<<<<<< HEAD
-import NewChequeForm from './components/NewChequeForm';
-=======
 import { NewCheckForm } from './components/NewCheckForm';
->>>>>>> 51c1fb7aa3f98304f5976a475b7846972ca315ba
 import { DepositForm } from './components/DepositForm';
 import { Reconciliation } from './components/Reconciliation';
 import { Reports } from './components/Reports';
 import { Settings } from './components/Settings';
-<<<<<<< HEAD
 import NewBankAccountForm from './components/NewBankAccountForm';
 import BankAccountsList from './components/BankAccountsList';
-=======
->>>>>>> 51c1fb7aa3f98304f5976a475b7846972ca315ba
 
 interface User {
   email: string;
@@ -102,11 +92,7 @@ export default function App() {
             <ChecksList onNavigate={handleNavigate} />
           )}
           {currentScreen === 'new-check' && (
-<<<<<<< HEAD
-            <NewChequeForm onNavigate={handleNavigate} />
-=======
             <NewCheckForm onNavigate={handleNavigate} />
->>>>>>> 51c1fb7aa3f98304f5976a475b7846972ca315ba
           )}
           {currentScreen === 'new-deposit' && (
             <DepositForm onNavigate={handleNavigate} />
@@ -120,15 +106,12 @@ export default function App() {
           {currentScreen === 'settings' && currentUser.role === 'admin' && (
             <Settings onNavigate={handleNavigate} />
           )}
-<<<<<<< HEAD
           {currentScreen === 'new-account' && (
-            <NewBankAccountForm onNavigate={handleNavigate} />
+            <NewBankAccountForm />
           )}
           {currentScreen === 'accounts' && (
             <BankAccountsList onNavigate={handleNavigate} />
           )}
-=======
->>>>>>> 51c1fb7aa3f98304f5976a475b7846972ca315ba
         </div>
       </main>
 

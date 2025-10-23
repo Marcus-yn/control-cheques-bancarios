@@ -2,19 +2,12 @@ import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
-<<<<<<< HEAD
 import React from "react";
-=======
->>>>>>> 51c1fb7aa3f98304f5976a475b7846972ca315ba
 import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { ArrowLeft, Save, CreditCard, Calculator } from 'lucide-react';
-<<<<<<< HEAD
 import { toast } from 'sonner';
-=======
-import { toast } from 'sonner@2.0.3';
->>>>>>> 51c1fb7aa3f98304f5976a475b7846972ca315ba
 
 interface DepositFormProps {
   onNavigate: (screen: string) => void;

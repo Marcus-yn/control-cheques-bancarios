@@ -18,10 +18,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
-<<<<<<< HEAD
 import React from "react";
-=======
->>>>>>> 51c1fb7aa3f98304f5976a475b7846972ca315ba
 import { motion } from 'motion/react';
 
 interface DashboardProps {
@@ -544,6 +541,17 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               </CardContent>
             </Card>
           </motion.div>
+        </div>
+
+        {/* Botón para Registrar Nueva Cuenta */}
+        <div className="flex flex-wrap gap-4 mt-8">
+          <Button
+            variant="default"
+            className="bg-gradient-to-r from-green-500 to-blue-500 text-white font-bold shadow-lg rounded-xl px-6 py-4 text-lg transition-all duration-300 hover:scale-105"
+            onClick={() => onNavigate('new-account')}
+          >
+            <Plus className="inline-block mr-2" /> Registrar nueva cuenta bancaria
+          </Button>
         </div>
       </div>
     </TooltipProvider>

@@ -1,11 +1,8 @@
-<<<<<<< HEAD
 /* Forzar color negro en el valor seleccionado de los selectores personalizados */
 .select-trigger-value,
 .select-trigger-value * {
   color: #111 !important;
 }
-=======
->>>>>>> 51c1fb7aa3f98304f5976a475b7846972ca315ba
 /*! tailwindcss v4.1.3 | MIT License | https://tailwindcss.com */
 @layer properties {
   @supports (((-webkit-hyphens: none)) and (not (margin-trim: inline))) or ((-moz-orient: inline) and (not (color: rgb(from red r g b)))) {
@@ -309,11 +306,7 @@
   }
 
   img, svg, video, canvas, audio, iframe, embed, object {
-<<<<<<< HEAD
   /* vertical-align: middle;  No aplica con display: block */
-=======
-    vertical-align: middle;
->>>>>>> 51c1fb7aa3f98304f5976a475b7846972ca315ba
     display: block;
   }
 
@@ -848,12 +841,8 @@
   }
 
   .line-clamp-1 {
-<<<<<<< HEAD
   -webkit-line-clamp: 1;
   line-clamp: 1;
-=======
-    -webkit-line-clamp: 1;
->>>>>>> 51c1fb7aa3f98304f5976a475b7846972ca315ba
     -webkit-box-orient: vertical;
     display: -webkit-box;
     overflow: hidden;
@@ -4294,12 +4283,8 @@
   }
 
   :is(.\*\:data-\[slot\=select-value\]\:line-clamp-1 > *)[data-slot="select-value"] {
-<<<<<<< HEAD
   -webkit-line-clamp: 1;
   line-clamp: 1;
-=======
-    -webkit-line-clamp: 1;
->>>>>>> 51c1fb7aa3f98304f5976a475b7846972ca315ba
     -webkit-box-orient: vertical;
     display: -webkit-box;
     overflow: hidden;

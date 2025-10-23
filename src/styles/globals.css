@@ -1,3 +1,11 @@
+/* Estilos para la tabla de cheques: texto negro y selección azul legible */
+.cheques-table td {
+  color: #111 !important;
+}
+.cheques-table ::selection {
+  background: #2563eb;
+  color: #111;
+}
 @custom-variant dark (&:is(.dark *));
 
 :root {
@@ -277,4 +285,8 @@ html {
     transform: translateY(-2px);
     box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
   }
+}
+
+.select-black, .select-black * {
+  color: #111 !important;
 }
