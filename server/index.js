@@ -245,42 +245,61 @@ app.use('/api', chequesApi);
 // 1. Endpoint para transacciones (TransactionsModule)
 app.get('/api/transacciones', async (req, res) => {
     try {
+        console.log('📊 Solicitud de transacciones recibida');
         const pool = await connectDB();
-        const result = await pool.request().query(`
+        
+        // Primero intentar obtener solo cheques
+        const chequesResult = await pool.request().query(`
             SELECT 
                 c.id,
-                c.numero_cheque,
-                cb.nombre as cuenta,
+                c.numero as numero_cheque,
+                ISNULL(cb.nombre, 'Sin cuenta') as cuenta,
                 c.beneficiario,
                 c.monto,
-                c.fecha_emision,
+                c.fecha as fecha_emision,
                 c.estado,
                 c.concepto,
                 'Cheque' as tipo
             FROM Cheques c
-            JOIN CuentasBancarias cb ON c.cuenta_id = cb.id
-            
-            UNION ALL
-            
-            SELECT 
-                d.id,
-                d.numero_deposito as numero_cheque,
-                cb.nombre as cuenta,
-                d.depositante as beneficiario,
-                d.monto,
-                d.fecha_deposito as fecha_emision,
-                'Completado' as estado,
-                d.descripcion as concepto,
-                'Depósito' as tipo
-            FROM Depositos d
-            JOIN CuentasBancarias cb ON d.cuenta_id = cb.id
-            
-            ORDER BY fecha_emision DESC
+            LEFT JOIN CuentasBancarias cb ON c.cuenta_id = cb.id
         `);
         
-        res.json(result.recordset);
+        console.log('✅ Cheques encontrados:', chequesResult.recordset.length);
+        
+        // Intentar obtener depósitos
+        let depositosResult = { recordset: [] };
+        try {
+            depositosResult = await pool.request().query(`
+                SELECT 
+                    d.id,
+                    d.numero_deposito as numero_cheque,
+                    ISNULL(cb.nombre, 'Sin cuenta') as cuenta,
+                    d.depositante as beneficiario,
+                    d.monto,
+                    d.fecha_deposito as fecha_emision,
+                    'Completado' as estado,
+                    d.descripcion as concepto,
+                    'Depósito' as tipo
+                FROM Depositos d
+                LEFT JOIN CuentasBancarias cb ON d.cuenta_id = cb.id
+            `);
+            console.log('✅ Depósitos encontrados:', depositosResult.recordset.length);
+        } catch (depError) {
+            console.log('⚠️ Error al obtener depósitos (tabla puede no existir):', depError.message);
+        }
+        
+        // Combinar resultados
+        const allTransactions = [
+            ...chequesResult.recordset,
+            ...depositosResult.recordset
+        ].sort((a, b) => new Date(b.fecha_emision) - new Date(a.fecha_emision));
+        
+        console.log('📈 Total transacciones enviadas:', allTransactions.length);
+        res.json(allTransactions);
+        
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error('❌ Error en /api/transacciones:', err.message);
+        res.status(500).json({ error: err.message, details: 'Error al obtener transacciones' });
     }
 });
 

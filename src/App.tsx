@@ -12,10 +12,10 @@ import { Reports } from './components/Reports';
 import { Settings } from './components/Settings';
 import NewBankAccountForm from './components/NewBankAccountForm';
 import BankAccountsList from './components/BankAccountsList';
-import { TransactionsModule } from './components/TransactionsModule';
-import { DepositModule } from './components/DepositModule';
-import { ReviewModule } from './components/ReviewModule';
-import { GraphicsModule } from './components/GraphicsModule';
+import TransactionsModule from './components/TransactionsModule';
+import DepositModule from './components/DepositModule';
+import ReviewModule from './components/ReviewModule';
+import GraphicsModule from './components/GraphicsModule';
 
 interface User {
   email: string;
