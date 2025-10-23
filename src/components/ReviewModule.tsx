@@ -2,855 +2,506 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
-import { Label } from './ui/label';
 import { Badge } from './ui/badge';
-import { Checkbox } from './ui/checkbox';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Alert, AlertDescription } from './ui/alert';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { Progress } from './ui/progress';
 import { 
+  ArrowLeft, 
   Upload, 
-  FileText, 
   CheckCircle2, 
-  AlertCircle, 
-  Download,
-  ArrowLeft,
-  Calculator,
+  AlertTriangle, 
+  Eye, 
+  FileSpreadsheet,
+  Target,
+  Zap,
   RefreshCw,
-  Eye,
-  Shield,
-  TrendingUp,
-  AlertTriangle,
-  CheckSquare,
-  Clock,
-  Banknote
+  Download,
+  Search,
+  Filter
 } from 'lucide-react';
-import { toast } from 'sonner';
 
 interface ReviewModuleProps {
   onNavigate: (screen: string) => void;
 }
 
-interface PendingCheck {
+interface ReconciliationItem {
   id: number;
-  number: string;
-  date: string;
-  beneficiary: string;
-  amount: number;
-  concept: string;
-  selected: boolean;
-  status: 'pending' | 'processing' | 'cleared';
-  daysOld: number;
+  numero_cheque: string;
+  cuenta: string;
+  beneficiario: string;
+  monto: number;
+  fecha_emision: string;
+  estado: string;
+  concepto: string;
+  estado_conciliacion: string;
 }
 
-interface BankMovement {
-  id: number;
-  date: string;
-  description: string;
-  amount: number;
-  reference: string;
-  matched: boolean;
-  checkId?: number;
-}
-
-interface Account {
-  id: number;
-  name: string;
-  number: string;
-  bank: string;
-  bookBalance: number;
-  bankBalance: number;
-  currency: string;
-}
-
-const mockAccounts: Account[] = [
-  { 
-    id: 1, 
-    name: 'Cuenta Principal', 
-    number: 'BAM-12345678', 
-    bank: 'BANCO AGROMERCANTIL', 
-    bookBalance: 387500, 
-    bankBalance: 395000,
-    currency: 'GTQ'
-  },
-  { 
-    id: 2, 
-    name: 'Cuenta Operativa', 
-    number: 'BI-87654321', 
-    bank: 'BANCO INDUSTRIAL', 
-    bookBalance: 125000, 
-    bankBalance: 120000,
-    currency: 'GTQ'
-  }
-];
-
-export function ReviewModule({ onNavigate }: ReviewModuleProps) {
-  const [selectedAccount, setSelectedAccount] = useState<string>('1');
-  const [pendingChecks, setPendingChecks] = useState<PendingCheck[]>([]);
-  const [bankMovements, setBankMovements] = useState<BankMovement[]>([]);
-  const [accounts, setAccounts] = useState<Account[]>(mockAccounts);
-  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
-  const [loading, setLoading] = useState(false);
+const ReviewModule: React.FC<ReviewModuleProps> = ({ onNavigate }) => {
+  const [items, setItems] = useState<ReconciliationItem[]>([]);
+  const [filteredItems, setFilteredItems] = useState<ReconciliationItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [autoMatching, setAutoMatching] = useState(false);
-  const [reconciliationProgress, setReconciliationProgress] = useState(0);
+  const [matchingProgress, setMatchingProgress] = useState(0);
+  const [error, setError] = useState<string | null>(null);
 
-  const currentAccount = accounts.find(acc => acc.id.toString() === selectedAccount);
-  const difference = currentAccount ? currentAccount.bankBalance - currentAccount.bookBalance : 0;
-
-  const formatCurrency = (amount: number, currency: string = 'GTQ') => {
-    return new Intl.NumberFormat('es-GT', {
-      style: 'currency',
-      currency: currency
-    }).format(amount);
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('es-GT', {
-      year: 'numeric',
-      month: 'short',
-      day: '2-digit'
-    });
-  };
-
-  const loadPendingChecks = async () => {
-    setLoading(true);
-    try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      const mockPendingChecks: PendingCheck[] = [
-        {
-          id: 1,
-          number: '001245',
-          date: '2024-10-15',
-          beneficiary: 'Proveedores Guatemala S.A.',
-          amount: 15000,
-          concept: 'Compra de materiales',
-          selected: false,
-          status: 'pending',
-          daysOld: 8
-        },
-        {
-          id: 2,
-          number: '001241',
-          date: '2024-10-11',
-          beneficiary: 'Suministros de Oficina',
-          amount: 1200,
-          concept: 'Papelería y útiles',
-          selected: false,
-          status: 'processing',
-          daysOld: 12
-        },
-        {
-          id: 3,
-          number: '001240',
-          date: '2024-10-10',
-          beneficiary: 'Servicios Técnicos',
-          amount: 8500,
-          concept: 'Mantenimiento equipos',
-          selected: false,
-          status: 'pending',
-          daysOld: 13
-        }
-      ];
-      
-      setPendingChecks(mockPendingChecks);
-    } catch (error) {
-      toast.error('Error al cargar cheques pendientes');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadBankMovements = async () => {
-    const mockBankMovements: BankMovement[] = [
-      { 
-        id: 1, 
-        date: '2024-10-22', 
-        description: 'CHQ 001245 PROVEEDORES GUATEMALA', 
-        amount: -15000, 
-        reference: '001245',
-        matched: false,
-        checkId: 1
-      },
-      { 
-        id: 2, 
-        date: '2024-10-21', 
-        description: 'DEPOSITO EFECTIVO', 
-        amount: 25000, 
-        reference: 'DEP001',
-        matched: true
-      },
-      { 
-        id: 3, 
-        date: '2024-10-20', 
-        description: 'CHQ 001243 NOMINA EMPLEADOS', 
-        amount: -45000, 
-        reference: '001243',
-        matched: true
-      },
-      { 
-        id: 4, 
-        date: '2024-10-19', 
-        description: 'TRANSFERENCIA RECIBIDA', 
-        amount: 18000, 
-        reference: 'TRF001',
-        matched: true
-      },
-      { 
-        id: 5, 
-        date: '2024-10-18', 
-        description: 'CHQ 001240 SERVICIOS TECNICOS', 
-        amount: -8500, 
-        reference: '001240',
-        matched: false,
-        checkId: 3
-      }
-    ];
-    setBankMovements(mockBankMovements);
-  };
-
+  // Cargar datos de reconciliación
   useEffect(() => {
-    loadPendingChecks();
-    loadBankMovements();
-  }, [selectedAccount]);
+    fetchReconciliationData();
+  }, []);
 
-  const handleCheckSelection = (checkId: number, selected: boolean) => {
-    setPendingChecks(prev => 
-      prev.map(check => 
-        check.id === checkId ? { ...check, selected } : check
-      )
-    );
-  };
+  // Aplicar filtros
+  useEffect(() => {
+    let filtered = items;
 
-  const selectAllChecks = (selected: boolean) => {
-    setPendingChecks(prev => prev.map(check => ({ ...check, selected })));
-  };
+    if (searchTerm) {
+      filtered = filtered.filter(item =>
+        item.beneficiario.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.numero_cheque.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.cuenta.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.concepto.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
 
-  const selectedChecks = pendingChecks.filter(check => check.selected);
-  const selectedAmount = selectedChecks.reduce((sum, check) => sum + check.amount, 0);
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter(item => 
+        item.estado_conciliacion.toLowerCase() === statusFilter.toLowerCase()
+      );
+    }
 
-  const performAutoMatching = async () => {
-    setAutoMatching(true);
-    setReconciliationProgress(0);
-    
+    setFilteredItems(filtered);
+  }, [items, searchTerm, statusFilter]);
+
+  const fetchReconciliationData = async () => {
     try {
-      // Simular proceso de matching automático
-      for (let i = 0; i <= 100; i += 10) {
-        setReconciliationProgress(i);
-        await new Promise(resolve => setTimeout(resolve, 100));
+      setLoading(true);
+      const response = await fetch('http://localhost:3001/api/reconciliacion');
+      
+      if (!response.ok) {
+        throw new Error('Error al cargar datos de reconciliación');
       }
       
-      // Marcar movimientos como matched
-      setBankMovements(prev => prev.map(movement => ({
-        ...movement,
-        matched: movement.checkId ? true : movement.matched
-      })));
-      
-      // Marcar cheques como cleared
-      setPendingChecks(prev => prev.map(check => {
-        const hasMovement = bankMovements.find(m => m.checkId === check.id);
-        return hasMovement ? { ...check, status: 'cleared' as const } : check;
-      }));
-      
-      toast.success('Conciliación automática completada');
-    } catch (error) {
-      toast.error('Error en la conciliación automática');
-    } finally {
-      setAutoMatching(false);
-      setReconciliationProgress(0);
-    }
-  };
-
-  const processReconciliation = async () => {
-    if (selectedChecks.length === 0) {
-      toast.error('Debe seleccionar al menos un cheque para conciliar');
-      return;
-    }
-
-    setLoading(true);
-
-    try {
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Marcar cheques seleccionados como cleared
-      setPendingChecks(prev => prev.map(check => 
-        check.selected ? { ...check, status: 'cleared' as const, selected: false } : check
-      ));
-      
-      toast.success(`${selectedChecks.length} cheques marcados como cobrados`);
-      
-    } catch (error) {
-      toast.error('Error al procesar la conciliación');
+      const data = await response.json();
+      setItems(data);
+      setFilteredItems(data);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error desconocido');
+      console.error('Error al cargar reconciliación:', err);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleAutoMatch = async () => {
+    setAutoMatching(true);
+    setMatchingProgress(0);
+
+    // Simular proceso de conciliación automática
+    const intervals = [20, 40, 60, 80, 100];
+    
+    for (let i = 0; i < intervals.length; i++) {
+      await new Promise(resolve => setTimeout(resolve, 800));
+      setMatchingProgress(intervals[i]);
+    }
+
+    // Simular actualización de estados
+    const updatedItems = items.map(item => {
+      if (item.estado === 'Cobrado' && item.estado_conciliacion === 'Pendiente') {
+        return { ...item, estado_conciliacion: 'Conciliado' };
+      }
+      return item;
+    });
+
+    setItems(updatedItems);
+    setFilteredItems(updatedItems);
+    setAutoMatching(false);
+    setMatchingProgress(0);
   };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      if (file.type !== 'text/csv' && !file.name.endsWith('.csv')) {
-        toast.error('Solo se permiten archivos CSV');
-        return;
-      }
-      setUploadedFile(file);
-      toast.success('Archivo CSV cargado correctamente');
+      // Simular procesamiento de archivo CSV
+      console.log('Procesando archivo:', file.name);
+      // Aquí iría la lógica para procesar el archivo CSV del banco
     }
   };
 
-  const downloadTemplate = () => {
-    const csvContent = [
-      'Fecha,Descripción,Monto,Referencia',
-      '2024-10-22,CHQ 001245 PROVEEDORES GUATEMALA,-15000,001245',
-      '2024-10-21,DEPOSITO EFECTIVO,25000,DEP001',
-      '2024-10-20,CHQ 001243 NOMINA EMPLEADOS,-45000,001243'
-    ].join('\n');
+  const exportReconciliation = () => {
+    const headers = ['Número', 'Cuenta', 'Beneficiario', 'Monto', 'Fecha', 'Estado', 'Estado Conciliación', 'Concepto'];
+    const csvData = filteredItems.map(item => [
+      item.numero_cheque,
+      item.cuenta,
+      item.beneficiario,
+      item.monto,
+      item.fecha_emision,
+      item.estado,
+      item.estado_conciliacion,
+      item.concepto
+    ]);
+
+    const csvContent = [headers, ...csvData]
+      .map(row => row.map(field => `"${field}"`).join(','))
+      .join('\n');
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
     link.setAttribute('href', url);
-    link.setAttribute('download', 'plantilla_conciliacion.csv');
+    link.setAttribute('download', `reconciliacion_${new Date().toISOString().split('T')[0]}.csv`);
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    
-    toast.success('Plantilla descargada correctamente');
   };
 
   const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'cleared':
-        return <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Cobrado</Badge>;
-      case 'processing':
-        return <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">Procesando</Badge>;
-      case 'pending':
-        return <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100">Pendiente</Badge>;
-      default:
-        return <Badge variant="outline">{status}</Badge>;
-    }
+    const colors: Record<string, string> = {
+      'Conciliado': 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border-emerald-300',
+      'Pendiente': 'bg-amber-100 text-amber-800 hover:bg-amber-200 border-amber-300',
+      'Sin conciliar': 'bg-red-100 text-red-800 hover:bg-red-200 border-red-300'
+    };
+
+    return (
+      <Badge 
+        variant="outline"
+        className={`${colors[status] || 'bg-gray-100 text-gray-800'} font-medium transition-colors duration-200`}
+      >
+        {status}
+      </Badge>
+    );
   };
 
-  const getUrgencyLevel = (daysOld: number) => {
-    if (daysOld > 15) return { level: 'high', color: 'text-red-600', icon: AlertTriangle };
-    if (daysOld > 7) return { level: 'medium', color: 'text-yellow-600', icon: Clock };
-    return { level: 'low', color: 'text-green-600', icon: CheckCircle2 };
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('es-GT', {
+      style: 'currency',
+      currency: 'GTQ'
+    }).format(amount);
   };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('es-ES', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
+  };
+
+  // Calcular estadísticas
+  const stats = {
+    total: filteredItems.length,
+    conciliados: filteredItems.filter(item => item.estado_conciliacion === 'Conciliado').length,
+    pendientes: filteredItems.filter(item => item.estado_conciliacion === 'Pendiente').length,
+    sinConciliar: filteredItems.filter(item => item.estado_conciliacion === 'Sin conciliar').length,
+    totalMonto: filteredItems.reduce((sum, item) => sum + parseFloat(item.monto.toString()), 0)
+  };
+
+  const conciliationPercentage = stats.total > 0 ? Math.round((stats.conciliados / stats.total) * 100) : 0;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <span className="ml-3 text-gray-600">Cargando datos de reconciliación...</span>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button 
-          variant="ghost" 
-          onClick={() => onNavigate('dashboard')}
-          className="rounded-lg"
-        >
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Volver
-        </Button>
-        <div className="flex-1">
-          <h1 className="text-3xl font-semibold flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-purple-400 to-purple-600 rounded-xl flex items-center justify-center">
-              <Shield className="h-6 w-6 text-white" />
-            </div>
-            Revisar Todo
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Conciliar mis cuentas y verificar el estado de los cheques
-          </p>
-        </div>
-        <div className="flex gap-2">
+    <div className="space-y-6 p-6 bg-gradient-to-br from-indigo-50 to-purple-50 min-h-screen">
+      <div className="flex justify-between items-center">
+        <div className="flex items-center space-x-4">
           <Button
-            onClick={performAutoMatching}
-            disabled={autoMatching}
-            className="bg-purple-600 hover:bg-purple-700 rounded-lg"
+            variant="outline"
+            onClick={() => onNavigate('dashboard')}
+            className="hover:bg-indigo-50 border-indigo-200 text-indigo-700"
           >
-            {autoMatching ? (
-              <>
-                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                Procesando...
-              </>
-            ) : (
-              <>
-                <CheckSquare className="h-4 w-4 mr-2" />
-                Auto-Conciliar
-              </>
-            )}
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Volver
+          </Button>
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+              Módulo de Revisión y Reconciliación
+            </h1>
+            <p className="text-gray-600 mt-2">Concilia automáticamente los registros bancarios</p>
+          </div>
+        </div>
+        <div className="flex space-x-2">
+          <Button 
+            onClick={exportReconciliation}
+            variant="outline"
+            className="hover:bg-purple-50 border-purple-200 text-purple-700"
+          >
+            <Download className="mr-2 h-4 w-4" />
+            Exportar
+          </Button>
+          <Button 
+            onClick={fetchReconciliationData}
+            variant="outline"
+            className="hover:bg-indigo-50 border-indigo-200 text-indigo-700"
+          >
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Actualizar
           </Button>
         </div>
       </div>
 
-      {/* Progress Bar for Auto Matching */}
-      {autoMatching && (
-        <Card className="rounded-xl border-purple-200 bg-purple-50">
-          <CardContent className="pt-6">
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span>Conciliación automática en progreso...</span>
-                <span>{reconciliationProgress}%</span>
-              </div>
-              <Progress value={reconciliationProgress} className="h-2" />
-            </div>
-          </CardContent>
-        </Card>
+      {error && (
+        <Alert className="border-red-200 bg-red-50">
+          <AlertTriangle className="h-4 w-4 text-red-600" />
+          <AlertDescription className="text-red-800">
+            {error}
+          </AlertDescription>
+        </Alert>
       )}
 
-      {/* Account Summary */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        <Card className="rounded-xl">
-          <CardHeader className="pb-4">
-            <CardTitle className="text-lg">Cuenta</CardTitle>
+      {/* Estadísticas de reconciliación */}
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <Card className="bg-gradient-to-br from-indigo-500 to-indigo-600 text-white shadow-xl border-0 hover:shadow-2xl transition-shadow duration-200">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium opacity-90">Total Items</CardTitle>
+            <Target className="h-4 w-4 opacity-80" />
           </CardHeader>
           <CardContent>
-            <Select value={selectedAccount} onValueChange={setSelectedAccount}>
-              <SelectTrigger className="rounded-lg">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {accounts.map(account => (
-                  <SelectItem key={account.id} value={account.id.toString()}>
-                    <div className="flex flex-col gap-1">
-                      <span className="font-medium">{account.name}</span>
-                      <span className="text-sm text-muted-foreground">{account.number}</span>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="text-2xl font-bold">{stats.total}</div>
+            <p className="text-xs opacity-80 mt-1">registros totales</p>
           </CardContent>
         </Card>
 
-        <Card className="rounded-xl border-l-4 border-l-blue-500">
-          <CardHeader className="pb-4">
-            <CardTitle className="text-lg text-blue-600 flex items-center gap-2">
-              <FileText className="h-5 w-5" />
-              Saldo Libro
-            </CardTitle>
+        <Card className="bg-gradient-to-br from-emerald-500 to-emerald-600 text-white shadow-xl border-0 hover:shadow-2xl transition-shadow duration-200">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium opacity-90">Conciliados</CardTitle>
+            <CheckCircle2 className="h-4 w-4 opacity-80" />
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-mono font-semibold">
-              {currentAccount && formatCurrency(currentAccount.bookBalance, currentAccount.currency)}
-            </p>
+            <div className="text-2xl font-bold">{stats.conciliados}</div>
+            <p className="text-xs opacity-80 mt-1">{conciliationPercentage}% del total</p>
           </CardContent>
         </Card>
 
-        <Card className="rounded-xl border-l-4 border-l-green-500">
-          <CardHeader className="pb-4">
-            <CardTitle className="text-lg text-green-600 flex items-center gap-2">
-              <Banknote className="h-5 w-5" />
-              Saldo Banco
-            </CardTitle>
+        <Card className="bg-gradient-to-br from-amber-500 to-orange-500 text-white shadow-xl border-0 hover:shadow-2xl transition-shadow duration-200">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium opacity-90">Pendientes</CardTitle>
+            <AlertTriangle className="h-4 w-4 opacity-80" />
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-mono font-semibold">
-              {currentAccount && formatCurrency(currentAccount.bankBalance, currentAccount.currency)}
-            </p>
+            <div className="text-2xl font-bold">{stats.pendientes}</div>
+            <p className="text-xs opacity-80 mt-1">por revisar</p>
           </CardContent>
         </Card>
 
-        <Card className={`rounded-xl border-l-4 ${
-          difference === 0 ? 'border-l-green-500' : 
-          difference > 0 ? 'border-l-yellow-500' : 'border-l-red-500'
-        }`}>
-          <CardHeader className="pb-4">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Calculator className="h-5 w-5" />
-              Diferencia
-            </CardTitle>
+        <Card className="bg-gradient-to-br from-red-500 to-red-600 text-white shadow-xl border-0 hover:shadow-2xl transition-shadow duration-200">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium opacity-90">Sin Conciliar</CardTitle>
+            <Eye className="h-4 w-4 opacity-80" />
           </CardHeader>
           <CardContent>
-            <p className={`text-2xl font-mono font-semibold ${
-              difference === 0 ? 'text-green-600' : 
-              difference > 0 ? 'text-yellow-600' : 'text-red-600'
-            }`}>
-              {currentAccount && formatCurrency(difference, currentAccount.currency)}
-            </p>
-            {difference === 0 && (
-              <Badge className="mt-2 bg-green-100 text-green-800">¡Cuadrado!</Badge>
-            )}
-            {difference !== 0 && (
-              <Badge variant="outline" className="mt-2">Requiere revisión</Badge>
-            )}
+            <div className="text-2xl font-bold">{stats.sinConciliar}</div>
+            <p className="text-xs opacity-80 mt-1">requieren atención</p>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-purple-500 to-purple-600 text-white shadow-xl border-0 hover:shadow-2xl transition-shadow duration-200">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium opacity-90">Monto Total</CardTitle>
+            <FileSpreadsheet className="h-4 w-4 opacity-80" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-xl font-bold">{formatCurrency(stats.totalMonto)}</div>
+            <p className="text-xs opacity-80 mt-1">valor total</p>
           </CardContent>
         </Card>
       </div>
 
-      <Tabs defaultValue="manual" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3 rounded-lg">
-          <TabsTrigger value="manual" className="rounded-lg">Conciliación Manual</TabsTrigger>
-          <TabsTrigger value="csv" className="rounded-lg">Importar CSV</TabsTrigger>
-          <TabsTrigger value="analysis" className="rounded-lg">Análisis</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="manual" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Pending Checks */}
-            <Card className="rounded-xl">
-              <CardHeader>
-                <div className="flex justify-between items-center">
-                  <div>
-                    <CardTitle className="flex items-center gap-2">
-                      <FileText className="h-5 w-5" />
-                      Cheques Pendientes
-                    </CardTitle>
-                    <CardDescription>
-                      Marque los cheques que aparecen cobrados en el estado de cuenta
-                    </CardDescription>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => selectAllChecks(true)}
-                      className="text-xs"
-                    >
-                      Seleccionar Todo
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => selectAllChecks(false)}
-                      className="text-xs"
-                    >
-                      Desmarcar Todo
-                    </Button>
-                  </div>
+      {/* Herramientas de reconciliación */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
+          <CardHeader className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-t-lg">
+            <CardTitle className="flex items-center text-lg">
+              <Zap className="mr-2 h-5 w-5" />
+              Conciliación Automática
+            </CardTitle>
+            <CardDescription className="text-indigo-100">
+              Encuentra coincidencias automáticamente
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-6">
+            {autoMatching ? (
+              <div className="space-y-4">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto mb-3"></div>
+                  <p className="text-sm text-gray-600">Procesando coincidencias...</p>
                 </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {loading ? (
-                    <div className="flex items-center justify-center py-8">
-                      <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
-                      <span className="ml-2 text-muted-foreground">Cargando...</span>
-                    </div>
-                  ) : (
-                    pendingChecks.map((check) => {
-                      const urgency = getUrgencyLevel(check.daysOld);
-                      const UrgencyIcon = urgency.icon;
-                      
-                      return (
-                        <div key={check.id} className="flex items-center space-x-3 p-4 border rounded-lg hover:bg-muted/30">
-                          <Checkbox
-                            id={`check-${check.id}`}
-                            checked={check.selected}
-                            onCheckedChange={(checked: boolean) =>
-                              handleCheckSelection(check.id, checked)
-                            }
-                          />
-                          <div className="flex-1 min-w-0">
-                            <div className="flex justify-between items-start">
-                              <div className="space-y-1">
-                                <div className="flex items-center gap-2">
-                                  <p className="font-medium">#{check.number}</p>
-                                  {getStatusBadge(check.status)}
-                                </div>
-                                <p className="text-sm text-muted-foreground truncate">
-                                  {check.beneficiary}
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                  {formatDate(check.date)}
-                                </p>
-                                <div className="flex items-center gap-1">
-                                  <UrgencyIcon className={`h-3 w-3 ${urgency.color}`} />
-                                  <span className={`text-xs ${urgency.color}`}>
-                                    {check.daysOld} días pendiente
-                                  </span>
-                                </div>
-                              </div>
-                              <p className="font-mono text-sm font-semibold">
-                                {formatCurrency(check.amount)}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                  
-                  {!loading && pendingChecks.length === 0 && (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <CheckCircle2 className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                      <p>No hay cheques pendientes</p>
-                      <p className="text-sm">¡Todas las transacciones están al día!</p>
-                    </div>
-                  )}
-                </div>
-
-                {selectedChecks.length > 0 && (
-                  <div className="mt-6 pt-4 border-t">
-                    <div className="flex justify-between items-center mb-4">
-                      <span className="font-medium">
-                        {selectedChecks.length} cheques seleccionados
-                      </span>
-                      <span className="font-mono">
-                        {formatCurrency(selectedAmount)}
-                      </span>
-                    </div>
-                    <Button
-                      onClick={processReconciliation}
-                      disabled={loading}
-                      className="w-full bg-green-600 hover:bg-green-700 rounded-lg"
-                    >
-                      {loading ? 'Procesando...' : 'Marcar como Cobrados'}
-                    </Button>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Bank Movements */}
-            <Card className="rounded-xl">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5" />
-                  Movimientos del Banco
-                </CardTitle>
-                <CardDescription>
-                  Últimos movimientos según estado de cuenta
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {bankMovements.map((movement) => (
-                    <div key={movement.id} className={`flex justify-between items-center p-3 rounded-lg border ${
-                      movement.matched ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'
-                    }`}>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <p className="font-medium text-sm">{movement.description}</p>
-                          {movement.matched ? (
-                            <CheckCircle2 className="h-4 w-4 text-green-600" />
-                          ) : (
-                            <AlertCircle className="h-4 w-4 text-yellow-600" />
-                          )}
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          {formatDate(movement.date)} • {movement.reference}
-                        </p>
-                        {movement.matched && (
-                          <Badge variant="outline" className="mt-1 text-xs bg-green-100 text-green-800">
-                            Conciliado
-                          </Badge>
-                        )}
-                      </div>
-                      <span className={`font-mono text-sm font-semibold ${
-                        movement.amount > 0 ? 'text-green-600' : 'text-red-600'
-                      }`}>
-                        {formatCurrency(movement.amount)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="csv" className="space-y-6">
-          <Card className="rounded-xl">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Upload className="h-5 w-5" />
-                Importar Estado de Cuenta
-              </CardTitle>
-              <CardDescription>
-                Suba el archivo CSV descargado desde su banco para conciliación automática
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <Alert className="rounded-lg border-blue-200 bg-blue-50">
-                <AlertCircle className="h-4 w-4 text-blue-600" />
-                <AlertDescription className="text-blue-800">
-                  El archivo CSV debe contener las columnas: Fecha, Descripción, Monto, Referencia
-                </AlertDescription>
-              </Alert>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="csv-file">Archivo CSV del Banco</Label>
-                    <Input
-                      id="csv-file"
-                      type="file"
-                      accept=".csv"
-                      onChange={handleFileUpload}
-                      className="rounded-lg"
-                    />
-                  </div>
-
-                  {uploadedFile && (
-                    <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                      <div className="flex items-center gap-2">
-                        <CheckCircle2 className="h-5 w-5 text-green-600" />
-                        <span className="font-medium text-green-800">
-                          {uploadedFile.name}
-                        </span>
-                      </div>
-                      <p className="text-sm text-green-700 mt-1">
-                        Archivo cargado correctamente ({(uploadedFile.size / 1024).toFixed(1)} KB)
-                      </p>
-                    </div>
-                  )}
-
-                  <Button
-                    onClick={() => {
-                      if (!uploadedFile) {
-                        toast.error('Debe cargar un archivo CSV primero');
-                        return;
-                      }
-                      performAutoMatching();
-                    }}
-                    disabled={!uploadedFile || autoMatching}
-                    className="w-full bg-purple-600 hover:bg-purple-700 rounded-lg"
-                  >
-                    <CheckSquare className="h-4 w-4 mr-2" />
-                    Procesar Conciliación Automática
-                  </Button>
-                </div>
-
-                <div className="space-y-4">
-                  <div>
-                    <h4 className="font-medium mb-2">¿No tienes el formato correcto?</h4>
-                    <p className="text-sm text-muted-foreground mb-4">
-                      Descarga nuestra plantilla de ejemplo para ver el formato requerido.
-                    </p>
-                    <Button
-                      variant="outline"
-                      onClick={downloadTemplate}
-                      className="w-full rounded-lg"
-                    >
-                      <Download className="h-4 w-4 mr-2" />
-                      Descargar Plantilla CSV
-                    </Button>
-                  </div>
-
-                  <div className="p-4 bg-muted/30 rounded-lg">
-                    <h5 className="font-medium text-sm mb-2">Formato del archivo:</h5>
-                    <div className="text-xs font-mono space-y-1 bg-black text-green-400 p-3 rounded">
-                      <p>Fecha,Descripción,Monto,Referencia</p>
-                      <p>2024-10-22,"CHQ 001245",-15000,001245</p>
-                      <p>2024-10-21,"DEPOSITO",25000,DEP001</p>
-                    </div>
-                  </div>
-                </div>
+                <Progress value={matchingProgress} className="w-full" />
+                <p className="text-xs text-center text-gray-500">{matchingProgress}% completado</p>
               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+            ) : (
+              <div className="space-y-4">
+                <p className="text-sm text-gray-600">
+                  Ejecuta la conciliación automática para encontrar coincidencias entre tus registros y los del banco.
+                </p>
+                <Button 
+                  onClick={handleAutoMatch}
+                  className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white"
+                >
+                  <Zap className="mr-2 h-4 w-4" />
+                  Iniciar Conciliación Automática
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
-        <TabsContent value="analysis" className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <Card className="rounded-xl">
-              <CardHeader>
-                <CardTitle className="text-lg">Estadísticas de Conciliación</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="text-center p-3 bg-green-50 rounded-lg">
-                    <p className="text-2xl font-bold text-green-600">
-                      {bankMovements.filter(m => m.matched).length}
-                    </p>
-                    <p className="text-sm text-muted-foreground">Conciliados</p>
-                  </div>
-                  <div className="text-center p-3 bg-yellow-50 rounded-lg">
-                    <p className="text-2xl font-bold text-yellow-600">
-                      {bankMovements.filter(m => !m.matched).length}
-                    </p>
-                    <p className="text-sm text-muted-foreground">Pendientes</p>
-                  </div>
-                </div>
-                
-                <div className="pt-4 border-t">
-                  <h4 className="font-medium mb-3">Porcentaje de Conciliación</h4>
-                  <Progress 
-                    value={(bankMovements.filter(m => m.matched).length / bankMovements.length) * 100} 
-                    className="h-3"
+        <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
+          <CardHeader className="bg-gradient-to-r from-purple-500 to-pink-600 text-white rounded-t-lg">
+            <CardTitle className="flex items-center text-lg">
+              <Upload className="mr-2 h-5 w-5" />
+              Importar Estado de Cuenta
+            </CardTitle>
+            <CardDescription className="text-purple-100">
+              Sube el archivo CSV del banco
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-6">
+            <div className="space-y-4">
+              <p className="text-sm text-gray-600">
+                Importa el estado de cuenta del banco en formato CSV para realizar la conciliación automática.
+              </p>
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-purple-400 transition-colors duration-200">
+                <FileSpreadsheet className="mx-auto h-8 w-8 text-gray-400 mb-2" />
+                <p className="text-sm text-gray-600 mb-2">Arrastra tu archivo CSV aquí o</p>
+                <Button variant="outline" className="border-purple-200 text-purple-700 hover:bg-purple-50">
+                  <Upload className="mr-2 h-4 w-4" />
+                  Seleccionar archivo
+                  <input
+                    type="file"
+                    accept=".csv"
+                    onChange={handleFileUpload}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                   />
-                  <p className="text-sm text-muted-foreground mt-2">
-                    {Math.round((bankMovements.filter(m => m.matched).length / bankMovements.length) * 100)}% completado
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
+                </Button>
+              </div>
+              <p className="text-xs text-gray-500">
+                Formatos soportados: CSV. Máximo 10MB.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
-            <Card className="rounded-xl">
-              <CardHeader>
-                <CardTitle className="text-lg">Alertas de Antigüedad</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {pendingChecks.filter(c => c.daysOld > 7).map(check => {
-                  const urgency = getUrgencyLevel(check.daysOld);
-                  const UrgencyIcon = urgency.icon;
-                  
-                  return (
-                    <div key={check.id} className="flex items-center gap-3 p-3 border rounded-lg">
-                      <UrgencyIcon className={`h-5 w-5 ${urgency.color}`} />
-                      <div className="flex-1">
-                        <p className="font-medium text-sm">#{check.number}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {check.daysOld} días pendiente
-                        </p>
-                      </div>
-                      <span className="font-mono text-sm">
-                        {formatCurrency(check.amount)}
-                      </span>
-                    </div>
-                  );
-                })}
-                
-                {pendingChecks.filter(c => c.daysOld > 7).length === 0 && (
-                  <div className="text-center py-4">
-                    <CheckCircle2 className="h-8 w-8 mx-auto mb-2 text-green-600" />
-                    <p className="text-sm text-muted-foreground">
-                      No hay cheques con retraso
-                    </p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+      {/* Filtros y búsqueda */}
+      <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
+        <CardHeader>
+          <CardTitle className="text-lg font-semibold text-gray-800">Filtros y Búsqueda</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+              <Input
+                placeholder="Buscar en registros..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 border-gray-200 focus:border-indigo-500 focus:ring-indigo-500"
+              />
+            </div>
+            
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="px-3 py-2 border border-gray-200 rounded-md focus:border-indigo-500 focus:ring-indigo-500"
+            >
+              <option value="all">Todos los estados</option>
+              <option value="conciliado">Conciliado</option>
+              <option value="pendiente">Pendiente</option>
+              <option value="sin conciliar">Sin conciliar</option>
+            </select>
 
-            <Card className="rounded-xl">
-              <CardHeader>
-                <CardTitle className="text-lg">Acciones Rápidas</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <Button
-                  onClick={performAutoMatching}
-                  disabled={autoMatching}
-                  className="w-full rounded-lg"
-                  variant="outline"
-                >
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Recargar Datos
-                </Button>
-                
-                <Button
-                  onClick={() => toast.info('Funcionalidad próximamente')}
-                  className="w-full rounded-lg"
-                  variant="outline"
-                >
-                  <FileText className="h-4 w-4 mr-2" />
-                  Generar Reporte
-                </Button>
-                
-                <Button
-                  onClick={() => toast.info('Funcionalidad próximamente')}
-                  className="w-full rounded-lg"
-                  variant="outline"
-                >
-                  <Eye className="h-4 w-4 mr-2" />
-                  Ver Historial
-                </Button>
-              </CardContent>
-            </Card>
+            <Button 
+              onClick={() => {
+                setSearchTerm('');
+                setStatusFilter('all');
+              }}
+              variant="outline"
+              className="hover:bg-gray-50"
+            >
+              <Filter className="mr-2 h-4 w-4" />
+              Limpiar filtros
+            </Button>
           </div>
-        </TabsContent>
-      </Tabs>
+        </CardContent>
+      </Card>
+
+      {/* Tabla de reconciliación */}
+      <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
+        <CardHeader>
+          <CardTitle className="text-lg font-semibold text-gray-800">
+            Registros de Reconciliación ({filteredItems.length})
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-auto max-h-[600px]">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-gray-50/50">
+                  <TableHead className="font-semibold text-gray-700">Número</TableHead>
+                  <TableHead className="font-semibold text-gray-700">Cuenta</TableHead>
+                  <TableHead className="font-semibold text-gray-700">Beneficiario</TableHead>
+                  <TableHead className="font-semibold text-gray-700">Monto</TableHead>
+                  <TableHead className="font-semibold text-gray-700">Fecha</TableHead>
+                  <TableHead className="font-semibold text-gray-700">Estado</TableHead>
+                  <TableHead className="font-semibold text-gray-700">Conciliación</TableHead>
+                  <TableHead className="font-semibold text-gray-700">Concepto</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredItems.map((item) => (
+                  <TableRow 
+                    key={item.id} 
+                    className="hover:bg-indigo-50/50 transition-colors duration-150"
+                  >
+                    <TableCell className="font-medium text-indigo-700">
+                      {item.numero_cheque}
+                    </TableCell>
+                    <TableCell className="text-gray-700">{item.cuenta}</TableCell>
+                    <TableCell className="text-gray-700">{item.beneficiario}</TableCell>
+                    <TableCell className="font-semibold text-green-700">
+                      {formatCurrency(parseFloat(item.monto.toString()))}
+                    </TableCell>
+                    <TableCell className="text-gray-600">
+                      {formatDate(item.fecha_emision)}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={item.estado === 'Cobrado' ? 'default' : 'outline'}>
+                        {item.estado}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {getStatusBadge(item.estado_conciliacion)}
+                    </TableCell>
+                    <TableCell className="text-gray-600 max-w-xs truncate">
+                      {item.concepto}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+            
+            {filteredItems.length === 0 && (
+              <div className="text-center py-12">
+                <Target className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                <p className="text-gray-600 text-lg">No se encontraron registros</p>
+                <p className="text-gray-400 text-sm">Intenta ajustar los filtros de búsqueda</p>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
-}
+};
+
+export default ReviewModule;

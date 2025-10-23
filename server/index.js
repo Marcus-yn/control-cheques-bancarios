@@ -1,22 +1,11 @@
 const express = require('express');
 const sql = require('mssql');
 const cors = require('cors');
+const { connectDB, dbConfig, insertTestData } = require('./database');
 
 const app = express();
 app.use(express.json());
 app.use(cors());
-
-// Configuración de SQL Server
-const dbConfig = {
-    user: 'marcus',
-    password: 'UMG2025@',
-    server: 'localhost',
-    database: 'ControlCheques',
-    options: {
-        encrypt: false,
-        trustServerCertificate: true
-    }
-};
 
 // Bancos de Guatemala
 const bancosGT = [
@@ -26,13 +15,15 @@ const bancosGT = [
 ];
 
 // Conectar a la base de datos
-async function connectDB() {
+async function initializeDatabase() {
     try {
-        const pool = await sql.connect(dbConfig);
-        return pool;
+        await connectDB();
+        console.log('✅ Conectado a la base de datos');
+        
+        // Insertar datos de prueba si es necesario
+        await insertTestData();
     } catch (err) {
-        console.error('Error de conexión a la base de datos:', err);
-        throw err;
+        console.error('❌ Error al inicializar la base de datos:', err);
     }
 }
 
@@ -249,8 +240,178 @@ const chequesApi = require('./cheques-api');
 chequesApi.dbConfig = dbConfig;
 app.use('/api', chequesApi);
 
+// Endpoints para módulos de reportes
+
+// 1. Endpoint para transacciones (TransactionsModule)
+app.get('/api/transacciones', async (req, res) => {
+    try {
+        const pool = await connectDB();
+        const result = await pool.request().query(`
+            SELECT 
+                c.id,
+                c.numero_cheque,
+                cb.nombre as cuenta,
+                c.beneficiario,
+                c.monto,
+                c.fecha_emision,
+                c.estado,
+                c.concepto,
+                'Cheque' as tipo
+            FROM Cheques c
+            JOIN CuentasBancarias cb ON c.cuenta_id = cb.id
+            
+            UNION ALL
+            
+            SELECT 
+                d.id,
+                d.numero_deposito as numero_cheque,
+                cb.nombre as cuenta,
+                d.depositante as beneficiario,
+                d.monto,
+                d.fecha_deposito as fecha_emision,
+                'Completado' as estado,
+                d.descripcion as concepto,
+                'Depósito' as tipo
+            FROM Depositos d
+            JOIN CuentasBancarias cb ON d.cuenta_id = cb.id
+            
+            ORDER BY fecha_emision DESC
+        `);
+        
+        res.json(result.recordset);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 2. Endpoint para depósitos (DepositModule)
+app.get('/api/depositos', async (req, res) => {
+    try {
+        const pool = await connectDB();
+        const result = await pool.request().query(`
+            SELECT d.*, cb.nombre as cuenta_nombre, cb.saldo_actual
+            FROM Depositos d
+            JOIN CuentasBancarias cb ON d.cuenta_id = cb.id
+            ORDER BY d.fecha_deposito DESC
+        `);
+        
+        res.json(result.recordset);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/depositos', async (req, res) => {
+    const { cuenta_id, numero_deposito, depositante, monto, tipo_deposito, descripcion } = req.body;
+    
+    try {
+        const pool = await connectDB();
+        
+        // Insertar depósito
+        await pool.request().query(`
+            INSERT INTO Depositos (cuenta_id, numero_deposito, depositante, monto, tipo_deposito, descripcion, fecha_deposito)
+            VALUES (${cuenta_id}, '${numero_deposito}', '${depositante}', ${monto}, '${tipo_deposito}', '${descripcion}', GETDATE())
+        `);
+        
+        // Actualizar saldo de la cuenta
+        await pool.request().query(`
+            UPDATE CuentasBancarias 
+            SET saldo_actual = saldo_actual + ${monto}, fecha_actualizacion = GETDATE()
+            WHERE id = ${cuenta_id}
+        `);
+        
+        res.json({ mensaje: 'Depósito registrado correctamente' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 3. Endpoint para revisión/reconciliación (ReviewModule)
+app.get('/api/reconciliacion', async (req, res) => {
+    try {
+        const pool = await connectDB();
+        const result = await pool.request().query(`
+            SELECT 
+                c.id,
+                c.numero_cheque,
+                cb.nombre as cuenta,
+                c.beneficiario,
+                c.monto,
+                c.fecha_emision,
+                c.estado,
+                c.concepto,
+                CASE 
+                    WHEN c.estado = 'Cobrado' THEN 'Conciliado'
+                    WHEN c.estado = 'Emitido' THEN 'Pendiente'
+                    ELSE 'Sin conciliar'
+                END as estado_conciliacion
+            FROM Cheques c
+            JOIN CuentasBancarias cb ON c.cuenta_id = cb.id
+            ORDER BY c.fecha_emision DESC
+        `);
+        
+        res.json(result.recordset);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 4. Endpoint para gráficos y estadísticas (GraphicsModule)
+app.get('/api/estadisticas', async (req, res) => {
+    try {
+        const pool = await connectDB();
+        
+        // Estadísticas mensuales
+        const mensual = await pool.request().query(`
+            SELECT 
+                FORMAT(fecha_emision, 'yyyy-MM') as mes,
+                COUNT(*) as total_cheques,
+                SUM(monto) as total_monto
+            FROM Cheques
+            WHERE fecha_emision >= DATEADD(month, -12, GETDATE())
+            GROUP BY FORMAT(fecha_emision, 'yyyy-MM')
+            ORDER BY mes
+        `);
+        
+        // Estadísticas por estado
+        const porEstado = await pool.request().query(`
+            SELECT estado, COUNT(*) as cantidad, SUM(monto) as total
+            FROM Cheques
+            GROUP BY estado
+        `);
+        
+        // Estadísticas por cuenta
+        const porCuenta = await pool.request().query(`
+            SELECT 
+                cb.nombre as cuenta,
+                COUNT(c.id) as total_cheques,
+                SUM(c.monto) as total_monto,
+                cb.saldo_actual
+            FROM CuentasBancarias cb
+            LEFT JOIN Cheques c ON cb.id = c.cuenta_id
+            WHERE cb.activa = 1
+            GROUP BY cb.id, cb.nombre, cb.saldo_actual
+        `);
+        
+        res.json({
+            mensual: mensual.recordset,
+            porEstado: porEstado.recordset,
+            porCuenta: porCuenta.recordset
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 const PORT = 3001;
-app.listen(PORT, () => {
-    console.log('🚀 Servidor backend ejecutándose en http://localhost:' + PORT);
-    console.log('📊 Para configurar tablas visita: http://localhost:' + PORT + '/api/setup-tables');
+
+// Inicializar la aplicación
+initializeDatabase().then(() => {
+    app.listen(PORT, () => {
+        console.log('🚀 Servidor backend ejecutándose en http://localhost:' + PORT);
+        console.log('📊 Para configurar tablas visita: http://localhost:' + PORT + '/api/setup-tables');
+    });
+}).catch(err => {
+    console.error('❌ Error al inicializar la aplicación:', err);
+    process.exit(1);
 });
