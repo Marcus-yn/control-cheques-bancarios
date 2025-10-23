@@ -250,7 +250,7 @@ export function ChecksList({ onNavigate }: ChecksListProps) {
             <div className="flex flex-wrap gap-4 mb-6 items-end">
               <div>
                 <Label htmlFor="limit" className="text-white font-semibold">Mostrar</Label>
-                <Select value={String(limit)} onValueChange={v => setLimit(Number(v))}>
+                <Select value={String(limit)} onValueChange={(v: string) => setLimit(Number(v))}>
                   <SelectTrigger className="w-32 bg-white/80 text-gray-900 font-bold border-2 border-blue-300 focus:border-blue-600 rounded-xl shadow-sm">
                     <SelectValue placeholder="Cantidad" />
                   </SelectTrigger>
