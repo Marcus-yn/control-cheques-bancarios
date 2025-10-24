@@ -1,16 +1,3 @@
-interface Cheque {
-  id: number;
-  number: string;
-  date: string;
-  beneficiary: string;
-  amount: number;
-  concept: string;
-  status: string;
-  account: string;
-  checkbook: string;
-  bank: string;
-  currency: string;
-}
 import { useState } from 'react';
 import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
@@ -38,8 +25,20 @@ import {
   Info
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { motion } from 'motion/react';
-import { getBankIcon } from './ui/smart-icons';
+
+interface Cheque {
+  id: number;
+  number: string;
+  date: string;
+  beneficiary: string;
+  amount: number;
+  concept: string;
+  status: string;
+  account: string;
+  checkbook: string;
+  bank: string;
+  currency: string;
+}
 
 interface ChecksListProps {
   onNavigate: (screen: string) => void;
@@ -48,22 +47,101 @@ interface ChecksListProps {
 export function ChecksList({ onNavigate }: ChecksListProps) {
   const [limit, setLimit] = useState(10);
   const [checks, setChecks] = useState<Cheque[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const fetchChecks = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('http://localhost:3001/api/cheques');
+      console.log('🔗 Response status:', res.status);
+      if (res.ok) {
+        const data = await res.json();
+        console.log('📊 Raw data received:', data);
+        console.log('📊 Data type:', typeof data);
+        console.log('📊 Is array?', Array.isArray(data));
+        console.log('📊 Data length:', data?.length);
+        
+        // Manejar diferentes formatos de respuesta
+        let checksArray = [];
+        if (Array.isArray(data)) {
+          checksArray = data;
+        } else if (data && Array.isArray(data.value)) {
+          checksArray = data.value;
+        } else if (data && data.recordset && Array.isArray(data.recordset)) {
+          checksArray = data.recordset;
+        }
+        
+        console.log('📊 Final checks array:', checksArray);
+        console.log('📊 Final array length:', checksArray.length);
+        setChecks(checksArray);
+        
+        if (checksArray.length > 0) {
+          toast.success(`✅ ${checksArray.length} cheques cargados correctamente`);
+        }
+      } else {
+        console.error('❌ Response not ok:', res.status, res.statusText);
+        toast.error('No se pudieron cargar los cheques');
+      }
+    } catch (error) {
+      console.error('❌ Error al cargar cheques:', error);
+      toast.error('Error de conexión al backend');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   React.useEffect(() => {
-    const fetchChecks = async () => {
-      try {
-        const res = await fetch('http://localhost:3001/api/cheques');
-        if (res.ok) {
-          const data = await res.json();
-          setChecks(Array.isArray(data) ? data : []);
-        } else {
-          toast.error('No se pudieron cargar los cheques');
-        }
-      } catch {
-        toast.error('Error de conexión al backend');
+    console.log('📋 ChecksList montado - Cargando cheques iniciales');
+    fetchChecks();
+    
+    // Limpiar cualquier marcador de actualización pendiente
+    localStorage.removeItem('checksUpdated');
+  }, []);
+
+  // Agregar un efecto para recargar cuando se enfoque la ventana
+  React.useEffect(() => {
+    const handleFocus = () => {
+      console.log('🔄 Recargando cheques por enfoque de ventana');
+      fetchChecks();
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, []);
+
+  // Escuchar cambios desde localStorage (cuando se crea un nuevo cheque)
+  React.useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'checksUpdated') {
+        console.log('🔄 Recargando cheques por nuevo cheque creado');
+        fetchChecks();
       }
     };
-    fetchChecks();
+
+    const handleBeforeUnload = () => {
+      localStorage.removeItem('checksUpdated');
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    
+    // También verificar al cargar el componente si hay una actualización pendiente
+    const lastUpdate = localStorage.getItem('checksUpdated');
+    if (lastUpdate) {
+      const updateTime = parseInt(lastUpdate);
+      const now = Date.now();
+      // Si la actualización fue hace menos de 5 segundos, recargar
+      if (now - updateTime < 5000) {
+        console.log('🔄 Recargando cheques por actualización reciente');
+        fetchChecks();
+        localStorage.removeItem('checksUpdated');
+      }
+    }
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
   }, []);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('todos');
@@ -76,19 +154,25 @@ export function ChecksList({ onNavigate }: ChecksListProps) {
       case 'pendiente':
         return (
           <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200 px-3 py-1 text-sm font-bold">
-            ⏰ Esperando
+            ⏰ Pendiente
           </Badge>
         );
       case 'cobrado':
         return (
           <Badge className="bg-green-100 text-green-800 border-green-200 px-3 py-1 text-sm font-bold">
-            ✅ Pagado
+            ✅ Cobrado
           </Badge>
         );
-      case 'anulado':
+      case 'cancelado':
         return (
           <Badge className="bg-red-100 text-red-800 border-red-200 px-3 py-1 text-sm font-bold">
             ❌ Cancelado
+          </Badge>
+        );
+      case 'emitido':
+        return (
+          <Badge className="bg-blue-100 text-blue-800 border-blue-200 px-3 py-1 text-sm font-bold">
+            📄 Emitido
           </Badge>
         );
       default:
@@ -102,8 +186,10 @@ export function ChecksList({ onNavigate }: ChecksListProps) {
         return <Clock className="h-5 w-5 text-yellow-600" />;
       case 'cobrado':
         return <CheckCheck className="h-5 w-5 text-green-600" />;
-      case 'anulado':
+      case 'cancelado':
         return <XCircle className="h-5 w-5 text-red-600" />;
+      case 'emitido':
+        return <FileText className="h-5 w-5 text-blue-600" />;
       default:
         return <FileText className="h-5 w-5 text-gray-600" />;
     }
@@ -122,8 +208,9 @@ export function ChecksList({ onNavigate }: ChecksListProps) {
         ));
         const statusMessages = {
           'cobrado': '✅ Cheque marcado como cobrado',
-          'anulado': '❌ Cheque anulado correctamente',
-          'pendiente': '⏰ Cheque marcado como pendiente'
+          'cancelado': '❌ Cheque cancelado correctamente',
+          'pendiente': '⏰ Cheque marcado como pendiente',
+          'emitido': '📄 Cheque marcado como emitido'
         };
         toast.success(statusMessages[newStatus as keyof typeof statusMessages] || 'Estado actualizado');
       } else {
@@ -242,6 +329,20 @@ export function ChecksList({ onNavigate }: ChecksListProps) {
                   <span>Consulta, filtra y exporta tus cheques registrados.</span>
                 </TooltipContent>
               </Tooltip>
+              <div className="ml-auto">
+                <Button
+                  onClick={fetchChecks}
+                  disabled={loading}
+                  className="bg-white/20 hover:bg-white/30 text-white border-2 border-white/30 rounded-xl transition-all duration-300"
+                >
+                  {loading ? (
+                    <Clock className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Download className="h-4 w-4 mr-2" />
+                  )}
+                  {loading ? 'Cargando...' : 'Actualizar'}
+                </Button>
+              </div>
             </CardTitle>
             <p className="text-white/90 text-lg mt-2">Visualiza todos tus cheques, cambia su estado y exporta reportes.</p>
           </CardHeader>
@@ -276,7 +377,8 @@ export function ChecksList({ onNavigate }: ChecksListProps) {
                     <SelectItem value="todos">Todos</SelectItem>
                     <SelectItem value="pendiente">Pendiente</SelectItem>
                     <SelectItem value="cobrado">Cobrado</SelectItem>
-                    <SelectItem value="anulado">Anulado</SelectItem>
+                    <SelectItem value="cancelado">Cancelado</SelectItem>
+                    <SelectItem value="emitido">Emitido</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -330,7 +432,7 @@ export function ChecksList({ onNavigate }: ChecksListProps) {
                                 size="sm"
                                 onClick={() => handleStatusChange(check.id, 'cobrado')}
                                 className="rounded-full bg-green-100 hover:bg-green-300 text-green-700 shadow-md transition-all duration-200 scale-100 hover:scale-110 animate-in fade-in"
-                                disabled={check.status === 'cobrado' || check.status === 'anulado'}
+                                disabled={check.status === 'cobrado' || check.status === 'cancelado'}
                               >
                                 <CheckCircle2 className="h-5 w-5 animate-bounce" />
                               </Button>
@@ -342,14 +444,14 @@ export function ChecksList({ onNavigate }: ChecksListProps) {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => handleStatusChange(check.id, 'anulado')}
+                                onClick={() => handleStatusChange(check.id, 'cancelado')}
                                 className="rounded-full bg-red-100 hover:bg-red-300 text-red-700 shadow-md transition-all duration-200 scale-100 hover:scale-110 animate-in fade-in"
-                                disabled={check.status === 'cobrado' || check.status === 'anulado'}
+                                disabled={check.status === 'cobrado' || check.status === 'cancelado'}
                               >
                                 <XCircle className="h-5 w-5 animate-bounce" />
                               </Button>
                             </TooltipTrigger>
-                            <TooltipContent>Anular</TooltipContent>
+                            <TooltipContent>Cancelar</TooltipContent>
                           </Tooltip>
                           <Tooltip>
                             <TooltipTrigger asChild>
@@ -358,7 +460,7 @@ export function ChecksList({ onNavigate }: ChecksListProps) {
                                 size="sm"
                                 onClick={() => handleStatusChange(check.id, 'pendiente')}
                                 className="rounded-full bg-yellow-100 hover:bg-yellow-300 text-yellow-700 shadow-md transition-all duration-200 scale-100 hover:scale-110 animate-in fade-in"
-                                disabled={check.status === 'pendiente' || check.status === 'cobrado' || check.status === 'anulado'}
+                                disabled={check.status === 'pendiente' || check.status === 'cobrado' || check.status === 'cancelado'}
                               >
                                 <Clock className="h-5 w-5 animate-bounce" />
                               </Button>

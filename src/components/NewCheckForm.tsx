@@ -282,8 +282,8 @@ export function NewCheckForm({ onNavigate }: NewCheckFormProps) {
           name: acc.nombre
         })));
 
-        // Refrescar cheques para "Mis Cheques"
-        await fetch('http://localhost:3001/api/cheques');
+        // Refrescar cheques para "Mis Cheques" - Notificar cambio
+        localStorage.setItem('checksUpdated', Date.now().toString());
 
         setTimeout(() => {
           onNavigate('checks');

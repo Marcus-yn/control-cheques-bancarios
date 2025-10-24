@@ -1,11 +1,22 @@
 const express = require('express');
 const sql = require('mssql');
 const cors = require('cors');
-const { connectDB, dbConfig, insertTestData } = require('./database');
 
 const app = express();
 app.use(express.json());
 app.use(cors());
+
+// Configuración de SQL Server
+const dbConfig = {
+    user: 'marcus',
+    password: 'UMG2025@',
+    server: 'localhost',
+    database: 'ControlCheques',
+    options: {
+        encrypt: false,
+        trustServerCertificate: true
+    }
+};
 
 // Bancos de Guatemala
 const bancosGT = [
@@ -15,15 +26,13 @@ const bancosGT = [
 ];
 
 // Conectar a la base de datos
-async function initializeDatabase() {
+async function connectDB() {
     try {
-        await connectDB();
-        console.log('✅ Conectado a la base de datos');
-        
-        // Insertar datos de prueba si es necesario
-        await insertTestData();
+        const pool = await sql.connect(dbConfig);
+        return pool;
     } catch (err) {
-        console.error('❌ Error al inicializar la base de datos:', err);
+        console.error('Error de conexión a la base de datos:', err);
+        throw err;
     }
 }
 
@@ -70,14 +79,17 @@ function generarNumeroCuenta(banco) {
     return prefijo + '-' + numero;
 }
 
-// Obtener todas las cuentas bancarias
+// Obtener todas las cuentas bancarias (ordenar por las que tienen chequeras primero)
 app.get('/api/cuentas', async (req, res) => {
     try {
         const pool = await connectDB();
         const result = await pool.request().query(`
-            SELECT * FROM CuentasBancarias 
-            WHERE activa = 1 
-            ORDER BY fecha_creacion DESC
+            SELECT c.*, 
+                   CASE WHEN EXISTS(SELECT 1 FROM Chequeras ch WHERE ch.cuenta_id = c.id AND ch.activa = 1) 
+                        THEN 1 ELSE 0 END as tiene_chequeras
+            FROM CuentasBancarias c
+            WHERE c.activa = 1 
+            ORDER BY tiene_chequeras DESC, c.fecha_creacion ASC
         `);
         res.json(result.recordset);
     } catch (err) {
@@ -103,7 +115,7 @@ app.get('/api/cuentas/:id', async (req, res) => {
     }
 });
 
-// Crear nueva cuenta bancaria
+// Crear nueva cuenta bancaria con chequera automática
 app.post('/api/cuentas', async (req, res) => {
     const { nombre, banco, moneda, tipo_cuenta, titular, saldo_inicial } = req.body;
     
@@ -118,12 +130,15 @@ app.post('/api/cuentas', async (req, res) => {
     
     try {
         const pool = await connectDB();
+        
         // Validar que no exista una cuenta con el mismo número
         const existe = await pool.request().query(`SELECT id FROM CuentasBancarias WHERE numero = '${numero}'`);
         if (existe.recordset.length > 0) {
             return res.status(409).json({ error: 'Ya existe una cuenta con ese número.' });
         }
-        const result = await pool.request().query(`
+        
+        // Crear la cuenta
+        const cuentaResult = await pool.request().query(`
             INSERT INTO CuentasBancarias 
             (nombre, numero, banco, moneda, tipo_cuenta, titular, saldo_inicial, saldo_actual) 
             OUTPUT INSERTED.*
@@ -133,9 +148,23 @@ app.post('/api/cuentas', async (req, res) => {
                 ${saldoActual}, ${saldoActual}
             )
         `);
+        
+        const nuevaCuenta = cuentaResult.recordset[0];
+        
+        // Crear automáticamente una chequera para la nueva cuenta
+        const chequeraResult = await pool.request().query(`
+            INSERT INTO Chequeras 
+            (cuenta_id, numero_inicial, numero_final, siguiente_numero, total_cheques, activa, fecha_creacion)
+            OUTPUT INSERTED.*
+            VALUES (
+                ${nuevaCuenta.id}, 1001, 2000, 1001, 1000, 1, GETDATE()
+            )
+        `);
+        
         res.status(201).json({
-            mensaje: 'Cuenta registrada correctamente',
-            cuenta: result.recordset[0]
+            mensaje: 'Cuenta y chequera creadas correctamente',
+            cuenta: nuevaCuenta,
+            chequera: chequeraResult.recordset[0]
         });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -158,6 +187,101 @@ app.put('/api/cuentas/:id', async (req, res) => {
         `);
         
         res.json({ mensaje: 'Cuenta actualizada correctamente' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Crear chequera para cuenta existente
+app.post('/api/cuentas/:id/chequera', async (req, res) => {
+    const { id } = req.params;
+    const { numero_inicial, numero_final, total_cheques } = req.body;
+    
+    try {
+        const pool = await connectDB();
+        
+        // Verificar que la cuenta existe
+        const cuentaResult = await pool.request().query(`
+            SELECT * FROM CuentasBancarias WHERE id = ${id} AND activa = 1
+        `);
+        
+        if (cuentaResult.recordset.length === 0) {
+            return res.status(404).json({ error: 'Cuenta no encontrada' });
+        }
+        
+        // Verificar que no tenga chequera activa
+        const chequeraExiste = await pool.request().query(`
+            SELECT id FROM Chequeras WHERE cuenta_id = ${id} AND activa = 1
+        `);
+        
+        if (chequeraExiste.recordset.length > 0) {
+            return res.status(409).json({ error: 'La cuenta ya tiene una chequera activa' });
+        }
+        
+        // Crear nueva chequera
+        const numeroInicial = numero_inicial || 1001;
+        const numeroFinal = numero_final || (numeroInicial + (total_cheques || 1000) - 1);
+        const totalCheques = total_cheques || 1000;
+        
+        const chequeraResult = await pool.request().query(`
+            INSERT INTO Chequeras 
+            (cuenta_id, numero_inicial, numero_final, siguiente_numero, total_cheques, activa, fecha_creacion)
+            OUTPUT INSERTED.*
+            VALUES (
+                ${id}, ${numeroInicial}, ${numeroFinal}, ${numeroInicial}, ${totalCheques}, 1, GETDATE()
+            )
+        `);
+        
+        res.status(201).json({
+            mensaje: 'Chequera creada correctamente',
+            chequera: chequeraResult.recordset[0]
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Crear chequeras automáticamente para cuentas existentes sin chequera
+app.post('/api/crear-chequeras-faltantes', async (req, res) => {
+    try {
+        const pool = await connectDB();
+        
+        // Encontrar cuentas sin chequeras activas
+        const cuentasSinChequera = await pool.request().query(`
+            SELECT c.* 
+            FROM CuentasBancarias c
+            WHERE c.activa = 1 
+            AND NOT EXISTS (
+                SELECT 1 FROM Chequeras ch 
+                WHERE ch.cuenta_id = c.id AND ch.activa = 1
+            )
+        `);
+        
+        let chequerasCreadas = 0;
+        const resultados = [];
+        
+        for (const cuenta of cuentasSinChequera.recordset) {
+            const chequeraResult = await pool.request().query(`
+                INSERT INTO Chequeras 
+                (cuenta_id, numero_inicial, numero_final, siguiente_numero, total_cheques, activa, fecha_creacion)
+                OUTPUT INSERTED.*
+                VALUES (
+                    ${cuenta.id}, 1001, 2000, 1001, 1000, 1, GETDATE()
+                )
+            `);
+            
+            chequerasCreadas++;
+            resultados.push({
+                cuenta: cuenta.nombre,
+                chequera: chequeraResult.recordset[0]
+            });
+        }
+        
+        res.json({
+            mensaje: `Se crearon ${chequerasCreadas} chequeras automáticamente`,
+            chequeras_creadas: chequerasCreadas,
+            resultados: resultados
+        });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -240,197 +364,8 @@ const chequesApi = require('./cheques-api');
 chequesApi.dbConfig = dbConfig;
 app.use('/api', chequesApi);
 
-// Endpoints para módulos de reportes
-
-// 1. Endpoint para transacciones (TransactionsModule)
-app.get('/api/transacciones', async (req, res) => {
-    try {
-        console.log('📊 Solicitud de transacciones recibida');
-        const pool = await connectDB();
-        
-        // Primero intentar obtener solo cheques
-        const chequesResult = await pool.request().query(`
-            SELECT 
-                c.id,
-                c.numero as numero_cheque,
-                ISNULL(cb.nombre, 'Sin cuenta') as cuenta,
-                c.beneficiario,
-                c.monto,
-                c.fecha as fecha_emision,
-                c.estado,
-                c.concepto,
-                'Cheque' as tipo
-            FROM Cheques c
-            LEFT JOIN CuentasBancarias cb ON c.cuenta_id = cb.id
-        `);
-        
-        console.log('✅ Cheques encontrados:', chequesResult.recordset.length);
-        
-        // Intentar obtener depósitos
-        let depositosResult = { recordset: [] };
-        try {
-            depositosResult = await pool.request().query(`
-                SELECT 
-                    d.id,
-                    d.numero_deposito as numero_cheque,
-                    ISNULL(cb.nombre, 'Sin cuenta') as cuenta,
-                    d.depositante as beneficiario,
-                    d.monto,
-                    d.fecha_deposito as fecha_emision,
-                    'Completado' as estado,
-                    d.descripcion as concepto,
-                    'Depósito' as tipo
-                FROM Depositos d
-                LEFT JOIN CuentasBancarias cb ON d.cuenta_id = cb.id
-            `);
-            console.log('✅ Depósitos encontrados:', depositosResult.recordset.length);
-        } catch (depError) {
-            console.log('⚠️ Error al obtener depósitos (tabla puede no existir):', depError.message);
-        }
-        
-        // Combinar resultados
-        const allTransactions = [
-            ...chequesResult.recordset,
-            ...depositosResult.recordset
-        ].sort((a, b) => new Date(b.fecha_emision) - new Date(a.fecha_emision));
-        
-        console.log('📈 Total transacciones enviadas:', allTransactions.length);
-        res.json(allTransactions);
-        
-    } catch (err) {
-        console.error('❌ Error en /api/transacciones:', err.message);
-        res.status(500).json({ error: err.message, details: 'Error al obtener transacciones' });
-    }
-});
-
-// 2. Endpoint para depósitos (DepositModule)
-app.get('/api/depositos', async (req, res) => {
-    try {
-        const pool = await connectDB();
-        const result = await pool.request().query(`
-            SELECT d.*, cb.nombre as cuenta_nombre, cb.saldo_actual
-            FROM Depositos d
-            JOIN CuentasBancarias cb ON d.cuenta_id = cb.id
-            ORDER BY d.fecha_deposito DESC
-        `);
-        
-        res.json(result.recordset);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-app.post('/api/depositos', async (req, res) => {
-    const { cuenta_id, numero_deposito, depositante, monto, tipo_deposito, descripcion } = req.body;
-    
-    try {
-        const pool = await connectDB();
-        
-        // Insertar depósito
-        await pool.request().query(`
-            INSERT INTO Depositos (cuenta_id, numero_deposito, depositante, monto, tipo_deposito, descripcion, fecha_deposito)
-            VALUES (${cuenta_id}, '${numero_deposito}', '${depositante}', ${monto}, '${tipo_deposito}', '${descripcion}', GETDATE())
-        `);
-        
-        // Actualizar saldo de la cuenta
-        await pool.request().query(`
-            UPDATE CuentasBancarias 
-            SET saldo_actual = saldo_actual + ${monto}, fecha_actualizacion = GETDATE()
-            WHERE id = ${cuenta_id}
-        `);
-        
-        res.json({ mensaje: 'Depósito registrado correctamente' });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// 3. Endpoint para revisión/reconciliación (ReviewModule)
-app.get('/api/reconciliacion', async (req, res) => {
-    try {
-        const pool = await connectDB();
-        const result = await pool.request().query(`
-            SELECT 
-                c.id,
-                c.numero_cheque,
-                cb.nombre as cuenta,
-                c.beneficiario,
-                c.monto,
-                c.fecha_emision,
-                c.estado,
-                c.concepto,
-                CASE 
-                    WHEN c.estado = 'Cobrado' THEN 'Conciliado'
-                    WHEN c.estado = 'Emitido' THEN 'Pendiente'
-                    ELSE 'Sin conciliar'
-                END as estado_conciliacion
-            FROM Cheques c
-            JOIN CuentasBancarias cb ON c.cuenta_id = cb.id
-            ORDER BY c.fecha_emision DESC
-        `);
-        
-        res.json(result.recordset);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// 4. Endpoint para gráficos y estadísticas (GraphicsModule)
-app.get('/api/estadisticas', async (req, res) => {
-    try {
-        const pool = await connectDB();
-        
-        // Estadísticas mensuales
-        const mensual = await pool.request().query(`
-            SELECT 
-                FORMAT(fecha_emision, 'yyyy-MM') as mes,
-                COUNT(*) as total_cheques,
-                SUM(monto) as total_monto
-            FROM Cheques
-            WHERE fecha_emision >= DATEADD(month, -12, GETDATE())
-            GROUP BY FORMAT(fecha_emision, 'yyyy-MM')
-            ORDER BY mes
-        `);
-        
-        // Estadísticas por estado
-        const porEstado = await pool.request().query(`
-            SELECT estado, COUNT(*) as cantidad, SUM(monto) as total
-            FROM Cheques
-            GROUP BY estado
-        `);
-        
-        // Estadísticas por cuenta
-        const porCuenta = await pool.request().query(`
-            SELECT 
-                cb.nombre as cuenta,
-                COUNT(c.id) as total_cheques,
-                SUM(c.monto) as total_monto,
-                cb.saldo_actual
-            FROM CuentasBancarias cb
-            LEFT JOIN Cheques c ON cb.id = c.cuenta_id
-            WHERE cb.activa = 1
-            GROUP BY cb.id, cb.nombre, cb.saldo_actual
-        `);
-        
-        res.json({
-            mensual: mensual.recordset,
-            porEstado: porEstado.recordset,
-            porCuenta: porCuenta.recordset
-        });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
 const PORT = 3001;
-
-// Inicializar la aplicación
-initializeDatabase().then(() => {
-    app.listen(PORT, () => {
-        console.log('🚀 Servidor backend ejecutándose en http://localhost:' + PORT);
-        console.log('📊 Para configurar tablas visita: http://localhost:' + PORT + '/api/setup-tables');
-    });
-}).catch(err => {
-    console.error('❌ Error al inicializar la aplicación:', err);
-    process.exit(1);
+app.listen(PORT, () => {
+    console.log('🚀 Servidor backend ejecutándose en http://localhost:' + PORT);
+    console.log('📊 Para configurar tablas visita: http://localhost:' + PORT + '/api/setup-tables');
 });
