@@ -364,7 +364,7 @@ const chequesApi = require('./cheques-api');
 chequesApi.dbConfig = dbConfig;
 app.use('/api', chequesApi);
 
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
     console.log('🚀 Servidor backend ejecutándose en http://localhost:' + PORT);
     console.log('📊 Para configurar tablas visita: http://localhost:' + PORT + '/api/setup-tables');

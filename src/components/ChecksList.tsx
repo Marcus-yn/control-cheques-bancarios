@@ -1,3 +1,18 @@
+interface Cheque {
+  id: number;
+  number: string;
+  date: string;
+  beneficiary: string;
+  amount: number;
+  concept: string;
+  status: string;
+  account: string;
+  checkbook: string;
+  bank: string;
+  currency: string;
+  account_name: string;
+}
+
 import { useState } from 'react';
 import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
@@ -22,23 +37,14 @@ import {
   Wallet,
   Clock,
   CheckCheck,
-  Info
+  Info,
+  FileSpreadsheet
 } from 'lucide-react';
 import { toast } from 'sonner';
-
-interface Cheque {
-  id: number;
-  number: string;
-  date: string;
-  beneficiary: string;
-  amount: number;
-  concept: string;
-  status: string;
-  account: string;
-  checkbook: string;
-  bank: string;
-  currency: string;
-}
+import { motion } from 'motion/react';
+import { getBankIcon } from './ui/smart-icons';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 interface ChecksListProps {
   onNavigate: (screen: string) => void;
@@ -53,37 +59,14 @@ export function ChecksList({ onNavigate }: ChecksListProps) {
     setLoading(true);
     try {
       const res = await fetch('http://localhost:3001/api/cheques');
-      console.log('🔗 Response status:', res.status);
       if (res.ok) {
         const data = await res.json();
-        console.log('📊 Raw data received:', data);
-        console.log('📊 Data type:', typeof data);
-        console.log('📊 Is array?', Array.isArray(data));
-        console.log('📊 Data length:', data?.length);
-        
-        // Manejar diferentes formatos de respuesta
-        let checksArray = [];
-        if (Array.isArray(data)) {
-          checksArray = data;
-        } else if (data && Array.isArray(data.value)) {
-          checksArray = data.value;
-        } else if (data && data.recordset && Array.isArray(data.recordset)) {
-          checksArray = data.recordset;
-        }
-        
-        console.log('📊 Final checks array:', checksArray);
-        console.log('📊 Final array length:', checksArray.length);
-        setChecks(checksArray);
-        
-        if (checksArray.length > 0) {
-          toast.success(`✅ ${checksArray.length} cheques cargados correctamente`);
-        }
+        setChecks(Array.isArray(data) ? data : []);
+        toast.success('✅ Cheques actualizados correctamente');
       } else {
-        console.error('❌ Response not ok:', res.status, res.statusText);
         toast.error('No se pudieron cargar los cheques');
       }
-    } catch (error) {
-      console.error('❌ Error al cargar cheques:', error);
+    } catch {
       toast.error('Error de conexión al backend');
     } finally {
       setLoading(false);
@@ -91,58 +74,9 @@ export function ChecksList({ onNavigate }: ChecksListProps) {
   };
 
   React.useEffect(() => {
-    console.log('📋 ChecksList montado - Cargando cheques iniciales');
     fetchChecks();
-    
-    // Limpiar cualquier marcador de actualización pendiente
-    localStorage.removeItem('checksUpdated');
   }, []);
 
-  // Agregar un efecto para recargar cuando se enfoque la ventana
-  React.useEffect(() => {
-    const handleFocus = () => {
-      console.log('🔄 Recargando cheques por enfoque de ventana');
-      fetchChecks();
-    };
-
-    window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
-  }, []);
-
-  // Escuchar cambios desde localStorage (cuando se crea un nuevo cheque)
-  React.useEffect(() => {
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'checksUpdated') {
-        console.log('🔄 Recargando cheques por nuevo cheque creado');
-        fetchChecks();
-      }
-    };
-
-    const handleBeforeUnload = () => {
-      localStorage.removeItem('checksUpdated');
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    
-    // También verificar al cargar el componente si hay una actualización pendiente
-    const lastUpdate = localStorage.getItem('checksUpdated');
-    if (lastUpdate) {
-      const updateTime = parseInt(lastUpdate);
-      const now = Date.now();
-      // Si la actualización fue hace menos de 5 segundos, recargar
-      if (now - updateTime < 5000) {
-        console.log('🔄 Recargando cheques por actualización reciente');
-        fetchChecks();
-        localStorage.removeItem('checksUpdated');
-      }
-    }
-
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-    };
-  }, []);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('todos');
   const [dateFrom, setDateFrom] = useState('');
@@ -163,33 +97,18 @@ export function ChecksList({ onNavigate }: ChecksListProps) {
             ✅ Cobrado
           </Badge>
         );
-      case 'cancelado':
-        return (
-          <Badge className="bg-red-100 text-red-800 border-red-200 px-3 py-1 text-sm font-bold">
-            ❌ Cancelado
-          </Badge>
-        );
       case 'emitido':
         return (
           <Badge className="bg-blue-100 text-blue-800 border-blue-200 px-3 py-1 text-sm font-bold">
             📄 Emitido
           </Badge>
         );
-      default:
-        return <Badge variant="outline">{status}</Badge>;
-    }
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'pendiente':
-        return <Clock className="h-5 w-5 text-yellow-600" />;
-      case 'cobrado':
-        return <CheckCheck className="h-5 w-5 text-green-600" />;
       case 'cancelado':
-        return <XCircle className="h-5 w-5 text-red-600" />;
-      case 'emitido':
-        return <FileText className="h-5 w-5 text-blue-600" />;
+        return (
+          <Badge className="bg-red-100 text-red-800 border-red-200 px-3 py-1 text-sm font-bold">
+            ❌ Cancelado
+          </Badge>
+        );
       default:
         return <FileText className="h-5 w-5 text-gray-600" />;
     }
@@ -247,37 +166,339 @@ export function ChecksList({ onNavigate }: ChecksListProps) {
   }).slice(0, limit);
 
   const formatCurrency = (amount: number, currency: string = 'GTQ') => {
+    if (currency === 'USD') {
+      return `$${amount.toFixed(2)}`;
+    }
     return new Intl.NumberFormat('es-GT', {
       style: 'currency',
       currency: currency
     }).format(amount);
   };
 
-  const exportToCSV = () => {
-    const headers = ['Número', 'Fecha', 'Beneficiario', 'Monto', 'Concepto', 'Estado'];
-    const csvContent = [
-      headers.join(','),
-      ...filteredChecks.map(check => [
-        check.number,
-        check.date,
-        `"${check.beneficiary}"`,
-        check.amount,
-        `"${check.concept}"`,
-        check.status
-      ].join(','))
-    ].join('\n');
+  const formatCurrencyForPDF = (amount: number, currency: string = 'GTQ') => {
+    if (currency === 'USD') {
+      return `$${amount.toFixed(2)}`;
+    } else {
+      return `Q${amount.toFixed(2)}`;
+    }
+  };
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const formatDateForPDF = (dateString: string) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('es-GT', { 
+      year: 'numeric', 
+      month: '2-digit', 
+      day: '2-digit' 
+    });
+  };
+
+  const exportToCSV = () => {
+    // Crear un CSV con colores y formato visual atractivo
+    const separator = ';'; // Usar punto y coma para mejor separación
+    const lineBreak = '\n';
+    
+    // Crear encabezado profesional con emojis y colores
+    const reportInfo = [
+      ['🏦', 'SISTEMA DE CONTROL', 'DE CHEQUES', 'BANCARIOS 🏦'],
+      ['═════════════════════════════════════════════════════════════════════════════', '', '', ''],
+      ['', '', '', ''],
+      ['📊 INFORMACIÓN', 'DEL REPORTE', '💼', ''],
+      ['📅 Fecha de Generación', new Date().toLocaleDateString('es-GT'), '', ''],
+      ['⏰ Hora de Generación', new Date().toLocaleTimeString('es-GT'), '', ''],
+      ['📈 Total de Cheques', `${filteredChecks.length.toString()} cheques`, '', ''],
+      ['💰 Monto Total', `💰 ${formatCurrencyForPDF(filteredChecks.reduce((sum, check) => sum + check.amount, 0))}`, '', ''],
+      ['', '', '', ''],
+      ['═════════════════════════════════════════════════════════════════════════════', '', '', ''],
+      ['', '', '', '']
+    ];
+    
+    // Encabezados de la tabla principal con emojis y colores
+    const headers = [
+      '🔢 Número',
+      '📅 Fecha', 
+      '🏦 Banco',
+      '💳 Cuenta',
+      '👤 Beneficiario',
+      '💰 Monto',
+      '💱 Moneda',
+      '📝 Concepto',
+      '📊 Estado'
+    ];
+    
+    // Crear filas de datos con colores y emojis por estado
+    const dataRows = filteredChecks.map(check => {
+      const getStatusWithEmoji = (status: string) => {
+        switch (status) {
+          case 'pendiente': return '⏳ PENDIENTE';
+          case 'emitido': return '📤 EMITIDO';
+          case 'cobrado': return '✅ COBRADO';
+          case 'cancelado': return '❌ CANCELADO';
+          default: return `📋 ${status.toUpperCase()}`;
+        }
+      };
+      
+      const getCurrencyWithEmoji = (currency: string) => {
+        return currency === 'USD' ? '💵 USD ($)' : '💰 GTQ (Q)';
+      };
+      
+      const getAmountWithStyle = (amount: number) => {
+        if (amount > 10000) return `💰 ${amount.toFixed(2)} (ALTO)`;
+        if (amount > 5000) return `� ${amount.toFixed(2)} (MEDIO)`;
+        if (amount > 1000) return `💰 ${amount.toFixed(2)} (NORMAL)`;
+        return `💰 ${amount.toFixed(2)}`;
+      };
+      
+      const getBankWithIcon = (bank: string) => {
+        const bankIcons: Record<string, string> = {
+          'BANCO INDUSTRIAL': '🏭 BI',
+          'BANRURAL': '🌾 BANRURAL', 
+          'BAC CREDOMATIC': '💳 BAC',
+          'BANCO G&T CONTINENTAL': '🌟 G&T',
+          'BANCO AGROMERCANTIL': '🌱 BAM',
+          'BANCO PROMERICA': '🚀 PROMERICA',
+          'BANCO INTERNACIONAL': '🌍 INTERNACIONAL',
+          'VIVIBANCO': '💎 VIVIBANCO'
+        };
+        return bankIcons[bank] || `🏦 ${bank}`;
+      };
+      
+      return [
+        `📋 ${check.number}`,
+        `📅 ${formatDateForPDF(check.date)}`,
+        getBankWithIcon(check.bank),
+        `💳 ${check.account_name}`,
+        `👤 ${check.beneficiary}`,
+        getAmountWithStyle(check.amount),
+        getCurrencyWithEmoji(check.currency),
+        `📝 ${check.concept}`,
+        getStatusWithEmoji(check.status)
+      ];
+    });
+    
+    // Estadísticas finales
+    const estadisticas = filteredChecks.reduce((acc, check) => {
+      acc[check.status] = (acc[check.status] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    
+    const summaryRows = [
+      [''],
+      ['═════════════════════════════════════════════════════════════════════════════'],
+      ['📊 RESUMEN ESTADÍSTICO', 'POR ESTADO', '🎯', ''],
+      [''],
+      ['⏳ Cheques Pendientes', `${(estadisticas.pendiente || 0).toString()} cheques`],
+      ['📤 Cheques Emitidos', `${(estadisticas.emitido || 0).toString()} cheques`],
+      ['✅ Cheques Cobrados', `${(estadisticas.cobrado || 0).toString()} cheques`],
+      ['❌ Cheques Cancelados', `${(estadisticas.cancelado || 0).toString()} cheques`],
+      [''],
+      ['💯 TOTAL GENERAL', `🎯 ${filteredChecks.length.toString()} cheques`],
+      [''],
+      ['💰 ANÁLISIS', 'FINANCIERO', '📈', ''],
+      ['💲 Monto Total Procesado', `💰 ${formatCurrencyForPDF(filteredChecks.reduce((sum, check) => sum + check.amount, 0))}`],
+      ['⏳ Monto Pendiente', `� ${formatCurrencyForPDF(filteredChecks.filter(c => c.status === 'pendiente').reduce((sum, check) => sum + check.amount, 0))}`],
+      ['✅ Monto Cobrado', `💰 ${formatCurrencyForPDF(filteredChecks.filter(c => c.status === 'cobrado').reduce((sum, check) => sum + check.amount, 0))}`],
+      ['📤 Monto Emitido', `💰 ${formatCurrencyForPDF(filteredChecks.filter(c => c.status === 'emitido').reduce((sum, check) => sum + check.amount, 0))}`],
+      [''],
+      ['═════════════════════════════════════════════════════════════════════════════'],
+      ['🏦 Sistema de Control', 'de Cheques Bancarios', '© 2025', '💼'],
+      [`📧 Reporte generado`, `automáticamente el`, `${new Date().toLocaleString('es-GT')}`, '⏰'],
+      ['🔥 ¡Gracias por usar', 'nuestro sistema!', '🚀', '']
+    ];
+    
+    // Combinar todas las filas
+    const allRows = [
+      ...reportInfo,
+      headers,
+      ['═══════════════════════════════════════════════════════════════════════════'],
+      ...dataRows,
+      ...summaryRows
+    ];
+    
+    // Convertir a CSV con separación clara
+    const csvContent = allRows.map(row => 
+      row.map(cell => {
+        // Escapar comillas dobles y envolver en comillas si contiene separador
+        const cellStr = String(cell);
+        if (cellStr.includes(separator) || cellStr.includes('"') || cellStr.includes('\n')) {
+          const escapedCell = cellStr.replace(/"/g, '""');
+          return `"${escapedCell}"`;
+        }
+        return cellStr;
+      }).join(separator)
+    ).join(lineBreak);
+
+    // Crear y descargar el archivo con BOM para UTF-8 y soporte completo de emojis
+    const BOM = '\uFEFF'; // BOM para UTF-8 con soporte de emojis
+    const blob = new Blob([BOM + csvContent], { 
+      type: 'text/csv;charset=utf-8;' 
+    });
+    
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
     link.setAttribute('href', url);
-    link.setAttribute('download', `cheques_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute('download', `Cheques_${new Date().toISOString().split('T')[0]}.csv`);
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
     
-    toast.success('📊 Reporte exportado correctamente');
+    toast.success('📊 CSV exportado exitosamente');
+  };  const exportToPDF = () => {
+    try {
+      // Verificar que jsPDF esté disponible
+      if (typeof jsPDF === 'undefined') {
+        toast.error('❌ Error: Librería PDF no disponible');
+        return;
+      }
+
+      const doc = new jsPDF();
+      
+      // Encabezado con color de fondo
+      doc.setFillColor(37, 99, 235);
+      doc.rect(0, 0, 210, 35, 'F');
+      
+      // Título principal
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(20);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Reporte de Cheques', 20, 20);
+      
+      // Fecha de generación
+      doc.setFontSize(10);
+      const fechaTexto = new Date().toLocaleDateString('es-GT');
+      doc.text(`Generado: ${fechaTexto}`, 140, 28);
+      
+      // Estadísticas
+      const totalCheques = filteredChecks.length;
+      const estadisticas = filteredChecks.reduce((acc, check) => {
+        acc[check.status] = (acc[check.status] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+      
+      // Caja de estadísticas
+      doc.setFillColor(248, 250, 252);
+      doc.rect(15, 40, 180, 20, 'F');
+      
+      doc.setTextColor(51, 65, 85);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Resumen:', 20, 50);
+      
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.text(`Total: ${totalCheques}`, 20, 55);
+      doc.text(`Pendientes: ${estadisticas.pendiente || 0}`, 60, 55);
+      doc.text(`Cobrados: ${estadisticas.cobrado || 0}`, 110, 55);
+      doc.text(`Cancelados: ${estadisticas.cancelado || 0}`, 150, 55);
+      
+      // Preparar datos para la tabla
+      const tableData = filteredChecks.map(check => [
+        check.number,
+        formatDateForPDF(check.date),
+        check.bank,
+        check.beneficiary,
+        formatCurrencyForPDF(check.amount, check.currency),
+        check.concept.length > 30 ? check.concept.substring(0, 27) + '...' : check.concept,
+        check.status.toUpperCase()
+      ]);
+      
+      // Usar autoTable correctamente
+      autoTable(doc, {
+        head: [['Número', 'Fecha', 'Banco', 'Beneficiario', 'Monto', 'Concepto', 'Estado']],
+        body: tableData,
+        startY: 70,
+        margin: { left: 15, right: 15 },
+        styles: {
+          fontSize: 8,
+          cellPadding: 3,
+          font: 'helvetica'
+        },
+        headStyles: {
+          fillColor: [37, 99, 235],
+          textColor: [255, 255, 255],
+          fontSize: 9,
+          fontStyle: 'bold',
+          halign: 'center'
+        },
+        bodyStyles: {
+          textColor: [51, 65, 85]
+        },
+        alternateRowStyles: {
+          fillColor: [248, 250, 252]
+        },
+        columnStyles: {
+          0: { cellWidth: 18, halign: 'center' },
+          1: { cellWidth: 25, halign: 'center' },
+          2: { cellWidth: 30, halign: 'left' },
+          3: { cellWidth: 35, halign: 'left' },
+          4: { cellWidth: 25, halign: 'right' },
+          5: { cellWidth: 40, halign: 'left' },
+          6: { cellWidth: 27, halign: 'center' }
+        },
+        didParseCell: function(data: any) {
+          if (data.column.index === 6) {
+            const estado = data.cell.text[0];
+            switch (estado) {
+              case 'PENDIENTE':
+                data.cell.styles.fillColor = [254, 240, 138];
+                data.cell.styles.textColor = [146, 64, 14];
+                break;
+              case 'COBRADO':
+                data.cell.styles.fillColor = [220, 252, 231];
+                data.cell.styles.textColor = [22, 101, 52];
+                break;
+              case 'CANCELADO':
+                data.cell.styles.fillColor = [254, 226, 226];
+                data.cell.styles.textColor = [153, 27, 27];
+                break;
+              case 'EMITIDO':
+                data.cell.styles.fillColor = [219, 234, 254];
+                data.cell.styles.textColor = [30, 64, 175];
+                break;
+            }
+          }
+          
+          // Resaltar montos altos
+          if (data.column.index === 4) {
+            const montoText = data.cell.text[0];
+            const monto = parseFloat(montoText.replace(/[Q$,]/g, ''));
+            if (monto > 2000) {
+              data.cell.styles.fontStyle = 'bold';
+              data.cell.styles.textColor = [220, 38, 38];
+            }
+          }
+        },
+        didDrawPage: function(data: any) {
+          // Pie de página
+          const pageCount = (doc as any).internal.getNumberOfPages();
+          const pageSize = doc.internal.pageSize;
+          const pageHeight = pageSize.height || pageSize.getHeight();
+          
+          doc.setFontSize(8);
+          doc.setTextColor(107, 114, 128);
+          doc.text(`Página ${data.pageNumber} de ${pageCount}`, 15, pageHeight - 15);
+          doc.text('🏦 Sistema de Control de Cheques © 2025', 100, pageHeight - 15);
+          
+          // Línea decorativa
+          doc.setDrawColor(37, 99, 235);
+          doc.setLineWidth(0.5);
+          doc.line(15, pageHeight - 20, 195, pageHeight - 20);
+        }
+      });
+      
+      // Generar nombre de archivo
+      const fileName = `Reporte_Cheques_${new Date().toISOString().split('T')[0]}.pdf`;
+      
+      // Guardar el PDF
+      doc.save(fileName);
+      toast.success('✅ PDF exportado exitosamente');
+      
+    } catch (error) {
+      console.error('Error detallado al generar PDF:', error);
+      toast.error(`❌ Error al generar PDF: ${error instanceof Error ? error.message : 'Error desconocido'}`);
+    }
   };
 
   return (
@@ -293,7 +514,7 @@ export function ChecksList({ onNavigate }: ChecksListProps) {
       `}</style>
       <div className="space-y-8">
         {/* Encabezado animado y visual tipo notificación */}
-  <div className="relative overflow-hidden rounded-2xl shadow-lg bg-gradient-to-r from-blue-600 via-teal-400 to-yellow-400 p-6 flex items-center gap-4 animate-in fade-in slide-in-from-top duration-700">
+        <div className="relative overflow-hidden rounded-2xl shadow-lg bg-gradient-to-r from-blue-600 via-teal-400 to-yellow-400 p-6 flex items-center gap-4 animate-in fade-in slide-in-from-top duration-700">
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 bg-white/30 rounded-2xl flex items-center justify-center animate-bounce">
               <Wallet className="h-8 w-8 text-white drop-shadow-lg" />
@@ -391,7 +612,10 @@ export function ChecksList({ onNavigate }: ChecksListProps) {
                 <Input id="dateTo" type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="w-36 bg-white/80 text-gray-900 font-bold border-2 border-blue-300 focus:border-blue-600 rounded-xl shadow-sm" />
               </div>
               <Button className="bg-gradient-to-r from-green-400 via-blue-400 to-purple-400 text-white font-bold px-6 py-3 rounded-xl shadow-lg hover:scale-110 hover:bg-gradient-to-r hover:from-green-500 hover:to-blue-500 transition-all duration-300 animate-pulse" onClick={exportToCSV}>
-                <Download className="w-5 h-5 mr-2 animate-spin" /> Exportar CSV
+                <FileSpreadsheet className="w-5 h-5 mr-2 animate-spin" /> Exportar CSV
+              </Button>
+              <Button className="bg-gradient-to-r from-red-400 via-pink-400 to-purple-400 text-white font-bold px-6 py-3 rounded-xl shadow-lg hover:scale-110 hover:bg-gradient-to-r hover:from-red-500 hover:to-pink-500 transition-all duration-300 animate-pulse" onClick={exportToPDF}>
+                <FileText className="w-5 h-5 mr-2 animate-bounce" /> Exportar PDF
               </Button>
             </div>
             {/* Tabla/lista de cheques */}
@@ -401,6 +625,7 @@ export function ChecksList({ onNavigate }: ChecksListProps) {
                   <tr>
                     <th className="px-4 py-3 text-left text-xs font-bold text-gray-700">Número</th>
                     <th className="px-4 py-3 text-left text-xs font-bold text-gray-700">Fecha</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-700">Cuenta/Banco</th>
                     <th className="px-4 py-3 text-left text-xs font-bold text-gray-700">Beneficiario</th>
                     <th className="px-4 py-3 text-left text-xs font-bold text-gray-700">Monto</th>
                     <th className="px-4 py-3 text-left text-xs font-bold text-gray-700">Concepto</th>
@@ -409,9 +634,9 @@ export function ChecksList({ onNavigate }: ChecksListProps) {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredChecks.length === 0 ? ( 
+                  {filteredChecks.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="text-center py-8 text-gray-500">No hay cheques registrados.</td>
+                      <td colSpan={8} className="text-center py-8 text-gray-500">No hay cheques registrados.</td>
                     </tr>
                   ) : (
                     filteredChecks.map(check => (
@@ -419,6 +644,12 @@ export function ChecksList({ onNavigate }: ChecksListProps) {
                         <td className="px-4 py-3 font-mono font-bold bg-white text-black">{check.number}</td>
                         <td className="px-4 py-3 bg-white text-black">
                           {check.date ? new Date(check.date).toLocaleDateString('es-GT', { year: 'numeric', month: '2-digit', day: '2-digit' }) : ''}
+                        </td>
+                        <td className="px-4 py-3 bg-white text-black">
+                          <div className="flex flex-col">
+                            <span className="font-semibold text-blue-600">{check.account_name}</span>
+                            <span className="text-xs text-gray-500">{check.bank}</span>
+                          </div>
                         </td>
                         <td className="px-4 py-3 bg-white text-black">{check.beneficiary}</td>
                         <td className="px-4 py-3 font-bold bg-white text-black">{formatCurrency(check.amount, check.currency)}</td>

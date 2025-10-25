@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug API Test</title>
+</head>
+<body>
+    <h1>Debug API Test</h1>
+    <button onclick="testAPI()">Test API</button>
+    <div id="output"></div>
+
+    <script>
+        async function testAPI() {
+            const output = document.getElementById('output');
+            output.innerHTML = '<p>Cargando...</p>';
+            
+            try {
+                const [accountsRes, checkbooksRes] = await Promise.all([
+                    fetch('http://localhost:3001/api/cuentas'),
+                    fetch('http://localhost:3001/api/chequeras')
+                ]);
+
+                const accountsData = await accountsRes.json();
+                const checkbooksData = await checkbooksRes.json();
+
+                console.log('Accounts Data:', accountsData);
+                console.log('Checkbooks Data:', checkbooksData);
+
+                // Mapear las chequeras como lo hace el frontend
+                const mappedCheckbooks = Array.isArray(checkbooksData) ? checkbooksData.map(cb => ({
+                    ...cb,
+                    accountId: String(cb.cuenta_id || cb.accountId),
+                    bank: cb.banco || '',
+                    name: cb.id ? `Chequera #${cb.id}` : (cb.name || ''),
+                    startNumber: cb.numero_inicial || cb.startNumber,
+                    endNumber: cb.numero_final || cb.endNumber,
+                    nextNumber: cb.siguiente_numero || cb.nextNumber
+                })) : [];
+
+                console.log('Mapped Checkbooks:', mappedCheckbooks);
+
+                // Simular selección de cuenta (usar la primera cuenta)
+                if (accountsData.length > 0) {
+                    const selectedAccount = String(accountsData[0].id);
+                    const availableCheckbooks = mappedCheckbooks.filter(cb => cb.accountId === selectedAccount);
+                    
+                    console.log('Selected Account ID:', selectedAccount);
+                    console.log('Available Checkbooks for this account:', availableCheckbooks);
+                }
+
+                output.innerHTML = `
+                    <h3>Resultados:</h3>
+                    <p><strong>Cuentas encontradas:</strong> ${accountsData.length}</p>
+                    <p><strong>Chequeras encontradas:</strong> ${checkbooksData.length}</p>
+                    <p><strong>Chequeras mapeadas:</strong> ${mappedCheckbooks.length}</p>
+                    <pre>${JSON.stringify(mappedCheckbooks, null, 2)}</pre>
+                `;
+            } catch (error) {
+                console.error('Error:', error);
+                output.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+            }
+        }
+    </script>
+</body>
+</html>

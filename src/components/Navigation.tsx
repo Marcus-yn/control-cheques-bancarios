@@ -49,52 +49,12 @@ const menuItems = [
   },
   { 
     id: 'dashboard', 
-    label: 'Panel Principal', 
-    description: 'Vista general del sistema',
-    tooltip: 'Accede al panel principal con resumen de actividades',
-    icon: LayoutDashboard, 
+    label: '🏠 Mi Escritorio', 
+    description: 'Ver todo de un vistazo',
+    tooltip: 'Aquí ves el resumen de todo: cuánto dinero tienes, cheques pendientes, movimientos recientes. ¡Es como la pantalla principal de tu negocio!',
+    icon: Home, 
     badge: null,
-    color: 'from-blue-500 to-purple-500',
-    roles: ['admin', 'user']
-  },
-  { 
-    id: 'transactions', 
-    label: 'Transacciones', 
-    description: 'Notas y movimientos',
-    tooltip: 'Ver todos los movimientos y transacciones de las cuentas',
-    icon: FileText, 
-    badge: null,
-    color: 'from-orange-500 to-red-500',
-    roles: ['admin', 'user']
-  },
-  { 
-    id: 'deposit', 
-    label: 'Depositar Dinero', 
-    description: 'Registrar un depósito',
-    tooltip: 'Registrar depósitos y abonos a las cuentas bancarias',
-    icon: DollarSign, 
-    badge: null,
-    color: 'from-orange-400 to-orange-600',
-    roles: ['admin', 'user']
-  },
-  { 
-    id: 'review', 
-    label: 'Revisar Todo', 
-    description: 'Conciliar mis cuentas',
-    tooltip: 'Conciliación bancaria y revisión de cheques pendientes',
-    icon: CheckCircle2, 
-    badge: '12',
-    color: 'from-purple-400 to-purple-600',
-    roles: ['admin', 'user']
-  },
-  { 
-    id: 'graphics', 
-    label: 'Ver Gráficos', 
-    description: 'Reportes y estadísticas',
-    tooltip: 'Reportes visuales y análisis estadístico de transacciones',
-    icon: BarChart3, 
-    badge: null,
-    color: 'from-teal-400 to-teal-600',
+    color: 'from-blue-500 to-cyan-500',
     roles: ['admin', 'user']
   },
   {
@@ -102,7 +62,7 @@ const menuItems = [
     label: 'Mis Cuentas',
     description: 'Ver y administrar cuentas bancarias',
     tooltip: 'Ver y administrar cuentas bancarias',
-    icon: Banknote,
+  icon: Banknote,
     badge: null,
     color: 'from-emerald-500 to-teal-500',
     roles: ['admin', 'user']

@@ -4,7 +4,7 @@ import { Input } from "./ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
 import { Badge } from "./ui/badge";
-import { AlertCircle, Download, Filter, Search, TrendingUp, DollarSign, CreditCard, Activity, ArrowLeft, RefreshCw } from 'lucide-react';
+import { AlertCircle, Download, Filter, Search, TrendingUp, DollarSign, CreditCard, Activity, ArrowLeft } from 'lucide-react';
 import { Alert, AlertDescription } from "./ui/alert";
 
 interface TransactionsModuleProps {
@@ -33,56 +33,28 @@ const TransactionsModule: React.FC<TransactionsModuleProps> = ({ onNavigate }) =
   const [error, setError] = useState<string | null>(null);
 
   // Cargar transacciones desde la API
-  const fetchTransactions = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      const response = await fetch('http://localhost:3001/api/transacciones', {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Error ${response.status}: ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      
-      if (Array.isArray(data)) {
+  useEffect(() => {
+    const fetchTransactions = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch('http://localhost:3001/api/transacciones');
+        
+        if (!response.ok) {
+          throw new Error('Error al cargar las transacciones');
+        }
+        
+        const data = await response.json();
         setTransactions(data);
         setFilteredTransactions(data);
-      } else {
-        throw new Error('Formato de datos inválido recibido del servidor');
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Error desconocido');
+        console.error('Error al cargar transacciones:', err);
+      } finally {
+        setLoading(false);
       }
-    } catch (err) {
-      console.error('Error al cargar transacciones:', err);
-      setError(err instanceof Error ? err.message : 'Error desconocido al cargar transacciones');
-      
-      // Cargar datos de ejemplo si falla la API
-      const mockData = [
-        {
-          id: 1,
-          numero_cheque: 'CHK-001',
-          cuenta: 'Cuenta Principal',
-          beneficiario: 'Proveedor ABC',
-          monto: 15000,
-          fecha_emision: new Date().toISOString(),
-          estado: 'Emitido',
-          concepto: 'Pago de servicios',
-          tipo: 'Cheque' as const
-        }
-      ];
-      setTransactions(mockData);
-      setFilteredTransactions(mockData);
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
 
-  useEffect(() => {
     fetchTransactions();
   }, []);
 
@@ -124,34 +96,6 @@ const TransactionsModule: React.FC<TransactionsModuleProps> = ({ onNavigate }) =
     completedAmount: filteredTransactions
       .filter(t => t.estado === 'Cobrado' || t.estado === 'Completado')
       .reduce((sum, t) => sum + parseFloat(t.monto.toString()), 0)
-  };
-
-  const exportToCSV = () => {
-    const headers = ['Número', 'Cuenta', 'Beneficiario', 'Monto', 'Fecha', 'Estado', 'Concepto', 'Tipo'];
-    const csvData = filteredTransactions.map(t => [
-      t.numero_cheque,
-      t.cuenta,
-      t.beneficiario,
-      t.monto,
-      t.fecha_emision,
-      t.estado,
-      t.concepto,
-      t.tipo
-    ]);
-
-    const csvContent = [headers, ...csvData]
-      .map(row => row.map(field => `"${field}"`).join(','))
-      .join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', `transacciones_${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
   };
 
   const getStatusBadge = (status: string) => {
@@ -225,23 +169,6 @@ const TransactionsModule: React.FC<TransactionsModuleProps> = ({ onNavigate }) =
             </h1>
             <p className="text-gray-600 mt-2">Gestiona y analiza todas las transacciones bancarias</p>
           </div>
-        </div>
-        <div className="flex space-x-2">
-          <Button 
-            onClick={fetchTransactions}
-            variant="outline"
-            className="hover:bg-blue-50 border-blue-200 text-blue-700"
-          >
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Actualizar
-          </Button>
-          <Button 
-            onClick={exportToCSV} 
-            className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-lg transition-all duration-200"
-          >
-            <Download className="mr-2 h-4 w-4" />
-            Exportar CSV
-          </Button>
         </div>
       </div>
 

@@ -12,10 +12,6 @@ import { Reports } from './components/Reports';
 import { Settings } from './components/Settings';
 import NewBankAccountForm from './components/NewBankAccountForm';
 import BankAccountsList from './components/BankAccountsList';
-import TransactionsModule from './components/TransactionsModule';
-import DepositModule from './components/DepositModule';
-import ReviewModule from './components/ReviewModule';
-import GraphicsModule from './components/GraphicsModule';
 
 interface User {
   email: string;
@@ -91,18 +87,6 @@ export default function App() {
         <div className="p-6 lg:p-8 pt-20 lg:pt-8">
           {currentScreen === 'dashboard' && (
             <Dashboard onNavigate={handleNavigate} />
-          )}
-          {currentScreen === 'transactions' && (
-            <TransactionsModule onNavigate={handleNavigate} />
-          )}
-          {currentScreen === 'deposit' && (
-            <DepositModule onNavigate={handleNavigate} />
-          )}
-          {currentScreen === 'review' && (
-            <ReviewModule onNavigate={handleNavigate} />
-          )}
-          {currentScreen === 'graphics' && (
-            <GraphicsModule onNavigate={handleNavigate} />
           )}
           {currentScreen === 'checks' && (
             <ChecksList onNavigate={handleNavigate} />

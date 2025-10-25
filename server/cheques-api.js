@@ -171,19 +171,16 @@ router.post('/cheques', async (req, res) => {
       `);
     }
     
-    // Descontar el monto del cheque del saldo_actual de la cuenta bancaria
-    await pool.request().query(`
-      UPDATE CuentasBancarias 
-      SET saldo_actual = saldo_actual - ${amount}, fecha_actualizacion = GETDATE()
-      WHERE id = ${accountId}
-    `);
+    // IMPORTANTE: Los cheques se crean en estado PENDIENTE
+    // Solo se descuenta el saldo cuando cambian a EMITIDO o COBRADO
+    // En estado PENDIENTE no se descuenta el saldo para evitar saldos negativos
     
     res.status(201).json({ 
-      mensaje: 'Cheque creado correctamente como PENDIENTE y monto descontado', 
+      mensaje: 'Cheque creado correctamente como PENDIENTE (sin descontar saldo)', 
       numeroCheque: number,
       estado: 'pendiente',
-      montoDescontado: amount,
-      nuevoSaldo: cuenta.saldo_actual - amount
+      saldoNoAfectado: true,
+      saldoActual: cuenta.saldo_actual
     });
   } catch (err) {
     console.error('Error en POST /api/cheques:', err);
@@ -240,22 +237,52 @@ router.put('/cheques/:id/estado', async (req, res) => {
     let ajusteSaldo = 0;
     let mensaje = 'Estado actualizado';
     
-    // LÓGICA DE ESTADOS:
-    // pendiente -> cobrado: ya estaba descontado, no hay cambio
-    // pendiente -> cancelado: devolver dinero (+monto)
-    // cobrado -> cancelado: devolver dinero (+monto)
-    // emitido -> cobrado: ya se descontó al crear, no hay cambio adicional  
-    // emitido -> cancelado: devolver dinero (+monto)
-    // cancelado -> cualquier otro: descontar nuevamente (-monto)
+    // NUEVA LÓGICA CORREGIDA DE ESTADOS:
+    // pendiente -> emitido: descontar monto (-monto)
+    // pendiente -> cobrado: descontar monto (-monto) 
+    // pendiente -> cancelado: no hacer nada (no se había descontado)
+    // emitido -> cobrado: no hacer nada (ya estaba descontado)
+    // emitido -> cancelado: devolver monto (+monto)
+    // emitido -> pendiente: devolver monto (+monto)
+    // cobrado -> cancelado: devolver monto (+monto)
+    // cobrado -> pendiente: devolver monto (+monto)
+    // cancelado -> pendiente: no hacer nada
+    // cancelado -> emitido: descontar monto (-monto)
+    // cancelado -> cobrado: descontar monto (-monto)
     
-    if (nuevoEstado === 'cancelado' && estadoAnterior !== 'cancelado') {
-      // Devolver dinero cuando se cancela
+    if (estadoAnterior === 'pendiente' && (nuevoEstado === 'emitido' || nuevoEstado === 'cobrado')) {
+      // Descontar dinero cuando se pasa de pendiente a emitido/cobrado
+      ajusteSaldo = -cheque.monto;
+      mensaje = `Cheque ${nuevoEstado}, monto descontado de la cuenta`;
+    } else if ((estadoAnterior === 'emitido' || estadoAnterior === 'cobrado') && nuevoEstado === 'cancelado') {
+      // Devolver dinero cuando se cancela un cheque que ya estaba descontado
       ajusteSaldo = cheque.monto;
       mensaje = 'Cheque cancelado, monto devuelto a la cuenta';
-    } else if (estadoAnterior === 'cancelado' && nuevoEstado !== 'cancelado') {
+    } else if ((estadoAnterior === 'emitido' || estadoAnterior === 'cobrado') && nuevoEstado === 'pendiente') {
+      // Devolver dinero cuando se regresa a pendiente
+      ajusteSaldo = cheque.monto;
+      mensaje = 'Cheque regresado a pendiente, monto devuelto a la cuenta';
+    } else if (estadoAnterior === 'cancelado' && (nuevoEstado === 'emitido' || nuevoEstado === 'cobrado')) {
       // Descontar dinero cuando se reactiva un cheque cancelado
       ajusteSaldo = -cheque.monto;
-      mensaje = 'Cheque reactivado, monto descontado de la cuenta';
+      mensaje = `Cheque reactivado como ${nuevoEstado}, monto descontado de la cuenta`;
+    }
+    
+    // Verificar saldo suficiente antes de descontar
+    if (ajusteSaldo < 0) { // Si vamos a descontar
+      const cuentaRes = await pool.request().query(`
+        SELECT saldo_actual FROM CuentasBancarias WHERE id = ${cheque.cuenta_id}
+      `);
+      const saldoActual = cuentaRes.recordset[0].saldo_actual;
+      
+      if (saldoActual + ajusteSaldo < 0) {
+        return res.status(400).json({ 
+          error: 'Saldo insuficiente para cambiar el estado del cheque',
+          saldoActual: saldoActual,
+          montoRequerido: Math.abs(ajusteSaldo),
+          saldoResultante: saldoActual + ajusteSaldo
+        });
+      }
     }
     
     // Aplicar ajuste de saldo si es necesario
@@ -377,6 +404,78 @@ router.get('/chequeras/:id/verificar-numero/:numero', async (req, res) => {
     });
   } catch (err) {
     console.error('Error en /api/chequeras/:id/verificar-numero:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Endpoint para obtener estado de cuenta de una cuenta específica
+router.get('/estado-cuenta/:cuentaId', async (req, res) => {
+  try {
+    const { cuentaId } = req.params;
+    const pool = await sql.connect(router.dbConfig);
+    
+    // Obtener información de la cuenta
+    const cuentaResult = await pool.request().query(`
+      SELECT id, nombre, numero, banco, saldo_inicial, saldo_actual, moneda, titular
+      FROM CuentasBancarias 
+      WHERE id = ${cuentaId} AND activa = 1
+    `);
+    
+    if (cuentaResult.recordset.length === 0) {
+      return res.status(404).json({ error: 'Cuenta no encontrada' });
+    }
+    
+    const cuenta = cuentaResult.recordset[0];
+    
+    // Obtener todos los cheques de esta cuenta
+    const chequesResult = await pool.request().query(`
+      SELECT numero, fecha, beneficiario, monto, concepto, estado
+      FROM Cheques 
+      WHERE cuenta_id = ${cuentaId}
+      ORDER BY fecha DESC, numero DESC
+    `);
+    
+    // Calcular estadísticas
+    const estadisticas = {
+      pendientes: { cantidad: 0, monto: 0 },
+      emitidos: { cantidad: 0, monto: 0 },
+      cobrados: { cantidad: 0, monto: 0 },
+      cancelados: { cantidad: 0, monto: 0 }
+    };
+    
+    chequesResult.recordset.forEach(cheque => {
+      if (estadisticas[cheque.estado]) {
+        estadisticas[cheque.estado].cantidad++;
+        estadisticas[cheque.estado].monto += cheque.monto;
+      }
+    });
+    
+    const estadoCuenta = {
+      cuenta: {
+        id: cuenta.id,
+        nombre: cuenta.nombre,
+        numero: cuenta.numero,
+        banco: cuenta.banco,
+        titular: cuenta.titular,
+        moneda: cuenta.moneda,
+        saldo_inicial: cuenta.saldo_inicial,
+        saldo_actual: cuenta.saldo_actual,
+        diferencia: cuenta.saldo_actual - cuenta.saldo_inicial
+      },
+      cheques: chequesResult.recordset,
+      estadisticas,
+      resumen: {
+        total_cheques: chequesResult.recordset.length,
+        monto_total_emitido: estadisticas.pendientes.monto + estadisticas.emitidos.monto + estadisticas.cobrados.monto,
+        monto_comprometido: estadisticas.pendientes.monto + estadisticas.emitidos.monto,
+        monto_efectivo: estadisticas.cobrados.monto
+      }
+    };
+    
+    res.json(estadoCuenta);
+    
+  } catch (err) {
+    console.error('Error en /api/estado-cuenta:', err);
     res.status(500).json({ error: err.message });
   }
 });
