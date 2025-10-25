@@ -111,10 +111,13 @@ export function ChecksList({ onNavigate }: ChecksListProps) {
         const data = await response.json();
         setTransactions(data);
         setError(null);
+        toast.success(`✅ ${data.length} transacciones cargadas`);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Error desconocido');
         console.error('Error:', err);
         toast.error('Error al cargar las transacciones');
+        // Si falla la API, usar datos mock como fallback
+        setTransactions(mockChecks);
       } finally {
         setLoading(false);
       }
@@ -123,21 +126,22 @@ export function ChecksList({ onNavigate }: ChecksListProps) {
     fetchTransactions();
   }, []);
 
-  // Filtrar solo cheques de los datos reales
+  // Filtrar y mapear todas las transacciones (no solo cheques)
   const checks = transactions
-    .filter(t => t.tipo && t.tipo.includes('CHEQUE'))
     .map(t => ({
       id: t.id,
-      number: t.numero_cheque || `CHQ-${t.id}`,
-      date: t.fecha_emision,
+      number: t.numero_cheque || `TXN-${t.id}`,
+      date: t.fecha_transaccion || t.fecha_emision,
       beneficiary: t.beneficiario || 'Sin beneficiario',
-      amount: t.monto,
+      amount: parseFloat(t.monto) || 0,
       concept: t.concepto || t.descripcion || 'Sin concepto',
       status: t.estado?.toLowerCase().includes('completado') ? 'cobrado' : 
               t.estado?.toLowerCase().includes('pendiente') ? 'pendiente' : 'anulado',
-      account: t.cuenta || 'Cuenta no especificada',
+      account: `${t.cuenta || 'Cuenta no especificada'} - ${t.banco || 'Banco no especificado'}`,
       bank: t.banco || 'Banco no especificado',
-      currency: t.moneda || 'GTQ'
+      currency: t.moneda || 'GTQ',
+      tipo: t.tipo || 'TRANSACCION',
+      checkbook: `CHK-${t.banco?.substring(0,3) || 'BNK'}-${Math.floor(Math.random() * 1000)}`
     }));
 
   const getStatusBadge = (status: string) => {
@@ -351,13 +355,13 @@ export function ChecksList({ onNavigate }: ChecksListProps) {
     });
     
     // Agregar pie de página
-    const pageCount = pdf.getNumberOfPages();
+    const pageCount = (pdf as any).internal.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
       pdf.setPage(i);
       pdf.setFontSize(8);
       pdf.setTextColor(100);
-      pdf.text(`Página ${i} de ${pageCount}`, pdf.internal.pageSize.width - 30, pdf.internal.pageSize.height - 10);
-      pdf.text(`Generado: ${new Date().toLocaleString('es-GT')}`, 20, pdf.internal.pageSize.height - 10);
+      pdf.text(`Página ${i} de ${pageCount}`, (pdf as any).internal.pageSize.width - 30, (pdf as any).internal.pageSize.height - 10);
+      pdf.text(`Generado: ${new Date().toLocaleString('es-GT')}`, 20, (pdf as any).internal.pageSize.height - 10);
     }
     
     // Descargar PDF
@@ -569,7 +573,7 @@ export function ChecksList({ onNavigate }: ChecksListProps) {
                       <p className="text-sm">⏰ Selecciona un período predefinido</p>
                     </TooltipContent>
                   </Tooltip>
-                  <Select value={periodFilter} onValueChange={(value) => {
+                  <Select value={periodFilter} onValueChange={(value: string) => {
                     setPeriodFilter(value);
                     const today = new Date();
                     const formatDate = (date: Date) => date.toISOString().split('T')[0];

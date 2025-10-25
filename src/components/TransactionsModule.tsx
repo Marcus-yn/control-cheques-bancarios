@@ -298,13 +298,13 @@ const TransactionsModule: React.FC<TransactionsModuleProps> = ({ onNavigate }) =
     }
     
     // Agregar pie de página
-    const pageCount = pdf.getNumberOfPages();
+    const pageCount = (pdf as any).internal.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
       pdf.setPage(i);
       pdf.setFontSize(8);
       pdf.setTextColor(100);
-      pdf.text(`Página ${i} de ${pageCount}`, pdf.internal.pageSize.width - 30, pdf.internal.pageSize.height - 10);
-      pdf.text(`Generado: ${new Date().toLocaleString('es-GT')}`, 20, pdf.internal.pageSize.height - 10);
+      pdf.text(`Página ${i} de ${pageCount}`, (pdf as any).internal.pageSize.width - 30, (pdf as any).internal.pageSize.height - 10);
+      pdf.text(`Generado: ${new Date().toLocaleString('es-GT')}`, 20, (pdf as any).internal.pageSize.height - 10);
     }
     
     // Descargar PDF
@@ -328,8 +328,10 @@ const TransactionsModule: React.FC<TransactionsModuleProps> = ({ onNavigate }) =
   // Función para obtener badge de estado con colores vibrantes
   const getStatusBadge = (status: string) => {
     const statusColors = {
-      'completado': 'bg-green-500 text-white border-green-600',
-      'pendiente': 'bg-yellow-500 text-white border-yellow-600',
+      'completado': 'bg-green-500 text-black border-green-600',
+      'completada': 'bg-green-500 text-black border-green-600',
+      'cobrado': 'bg-orange-500 text-black border-orange-600',
+      'pendiente': 'bg-yellow-500 text-black border-yellow-600',
       'anulado': 'bg-red-500 text-white border-red-600',
       'emitido': 'bg-blue-500 text-white border-blue-600'
     };
@@ -339,11 +341,12 @@ const TransactionsModule: React.FC<TransactionsModuleProps> = ({ onNavigate }) =
     
     return (
       <Badge className={`${colorClass} font-bold px-3 py-1 text-xs shadow-md`}>
-        {normalizedStatus === 'completado' && '✅ COMPLETADO'}
+        {(normalizedStatus === 'completado' || normalizedStatus === 'completada') && '✅ COMPLETADA'}
+        {normalizedStatus === 'cobrado' && '💰 COBRADO'}
         {normalizedStatus === 'pendiente' && '⏰ PENDIENTE'}
         {normalizedStatus === 'anulado' && '❌ ANULADO'}
         {normalizedStatus === 'emitido' && '🚀 EMITIDO'}
-        {!['completado', 'pendiente', 'anulado', 'emitido'].includes(normalizedStatus) && status.toUpperCase()}
+        {!['completado', 'completada', 'cobrado', 'pendiente', 'anulado', 'emitido'].includes(normalizedStatus) && status.toUpperCase()}
       </Badge>
     );
   };
@@ -472,7 +475,7 @@ const TransactionsModule: React.FC<TransactionsModuleProps> = ({ onNavigate }) =
               <Label className="text-lg font-semibold text-gray-700 flex items-center gap-2">
                 📅 Período
               </Label>
-              <Select value={periodFilter} onValueChange={(value) => {
+              <Select value={periodFilter} onValueChange={(value: string) => {
                 setPeriodFilter(value);
                 const today = new Date();
                 const formatDate = (date: Date) => date.toISOString().split('T')[0];

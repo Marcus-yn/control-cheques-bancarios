@@ -100,34 +100,35 @@ export function Reports({ onNavigate }: ReportsProps) {
         ]);
 
         if (monthlyResponse.ok) {
-          const data = await monthlyResponse.json();
-          setMonthlyData(data);
+          const monthlyJson = await monthlyResponse.json();
+          setMonthlyData(monthlyJson.data || []);
         }
 
         if (beneficiaryResponse.ok) {
-          const data = await beneficiaryResponse.json();
-          setBeneficiaryData(data.slice(0, 10)); // Top 10 beneficiarios
+          const beneficiaryJson = await beneficiaryResponse.json();
+          setBeneficiaryData(beneficiaryJson.data || []);
         }
 
         if (statusResponse.ok) {
-          const data = await statusResponse.json();
-          setStatusData(data);
+          const statusJson = await statusResponse.json();
+          setStatusData(statusJson.data || []);
         }
 
         if (statsResponse.ok) {
-          const data = await statsResponse.json();
-          setGeneralStats(data);
+          const statsJson = await statsResponse.json();
+          setGeneralStats(statsJson.data || null);
         }
 
         if (accountsResponse.ok) {
-          const data = await accountsResponse.json();
-          setAccounts(data);
+          const accountsJson = await accountsResponse.json();
+          setAccounts(accountsJson.data || []);
         }
 
         setApiError(null);
-      } catch (err) {
-        setApiError(err instanceof Error ? err.message : 'Error desconocido');
-        console.error('Error al cargar datos de reportes:', err);
+      } catch (error) {
+        console.error('Error fetching report data:', error);
+        setApiError('Error al cargar datos de reportes');
+        toast.error('Error al cargar datos');
       } finally {
         setApiLoading(false);
       }
@@ -135,86 +136,6 @@ export function Reports({ onNavigate }: ReportsProps) {
 
     fetchReportData();
   }, []);
-
-  // useEffect para actualizar datos cuando cambia el tipo de reporte o filtros
-  useEffect(() => {
-    const updateReportData = async () => {
-      if (reportType) {
-        setApiLoading(true);
-        try {
-          let filteredData = [];
-          
-          if (reportType === 'beneficiarios') {
-            const response = await fetch('http://localhost:3001/api/reportes/beneficiarios');
-            const data = await response.json();
-            setBeneficiaryData(data);
-            toast.success('📊 Reporte de beneficiarios actualizado');
-          } else {
-            // Obtener todas las transacciones
-            const response = await fetch('http://localhost:3001/api/transacciones');
-            const allData = await response.json();
-            
-            // Filtrar por tipo
-            if (reportType === 'ingresos') {
-              filteredData = allData.filter((t: any) => t.tipo === 'DEPOSITO');
-            } else if (reportType === 'egresos') {
-              filteredData = allData.filter((t: any) => t.tipo === 'CHEQUE' || t.tipo === 'RETIRO');
-            } else {
-              filteredData = allData; // general
-            }
-            
-            // Filtrar por fechas
-            filteredData = filteredData.filter((t: any) => {
-              const fechaTransaccion = t.fecha_emision || t.fecha_transaccion;
-              if (!fechaTransaccion) return false;
-              
-              const fecha = new Date(fechaTransaccion);
-              const desde = new Date(dateFrom);
-              const hasta = new Date(dateTo);
-              
-              return fecha >= desde && fecha <= hasta;
-            });
-            
-            // Filtrar por cuenta si se seleccionó una específica
-            if (selectedAccount !== 'all') {
-              filteredData = filteredData.filter((t: any) => 
-                t.cuenta_id && t.cuenta_id.toString() === selectedAccount
-              );
-            }
-            
-            // Actualizar estadísticas según los datos filtrados
-            const totalEgresos = filteredData.filter((t: any) => t.tipo === 'CHEQUE' || t.tipo === 'RETIRO').reduce((sum: number, t: any) => sum + parseFloat(t.monto), 0);
-            const totalIngresos = filteredData.filter((t: any) => t.tipo === 'DEPOSITO').reduce((sum: number, t: any) => sum + parseFloat(t.monto), 0);
-            
-            const stats = {
-              totalMovimientos: filteredData.length,
-              totalEgresos,
-              totalIngresos,
-              mayorEgreso: filteredData.filter((t: any) => t.tipo === 'CHEQUE').length > 0 ? 
-                Math.max(...filteredData.filter((t: any) => t.tipo === 'CHEQUE').map((t: any) => parseFloat(t.monto))) : 0,
-              mayorIngreso: filteredData.filter((t: any) => t.tipo === 'DEPOSITO').length > 0 ? 
-                Math.max(...filteredData.filter((t: any) => t.tipo === 'DEPOSITO').map((t: any) => parseFloat(t.monto))) : 0,
-              montoPromedio: filteredData.length > 0 ? 
-                filteredData.reduce((sum: number, t: any) => sum + parseFloat(t.monto), 0) / filteredData.length : 0,
-              tasaCobro: 0,
-              porcentajeAnulados: 0
-            };
-            
-            setGeneralStats(stats);
-            toast.success(`📊 Datos actualizados: ${filteredData.length} registros`);
-          }
-          
-        } catch (error) {
-          console.error('Error al actualizar datos:', error);
-          toast.error('Error al actualizar datos');
-        } finally {
-          setApiLoading(false);
-        }
-      }
-    };
-
-    updateReportData();
-  }, [reportType, dateFrom, dateTo, selectedAccount]);
 
   // 📊 ESTADÍSTICAS REACTIVAS - Aquí están las que se filtran dinámicamente
   const getFilteredStats = () => {
@@ -273,27 +194,14 @@ export function Reports({ onNavigate }: ReportsProps) {
       const pdf = new jsPDF();
       const stats = getFilteredStats();
       
-      // Formatear fecha en español DD-MM-AA
-      const fechaHoy = new Date();
-      const fechaFormateada = `${fechaHoy.getDate().toString().padStart(2, '0')}-${(fechaHoy.getMonth() + 1).toString().padStart(2, '0')}-${fechaHoy.getFullYear().toString().slice(-2)}`;
-      
-      // Formatear fechas del período en español DD-MM-AAAA
-      const formatearFecha = (fecha: string) => {
-        const fechaObj = new Date(fecha);
-        return `${fechaObj.getDate().toString().padStart(2, '0')}-${(fechaObj.getMonth() + 1).toString().padStart(2, '0')}-${fechaObj.getFullYear()}`;
-      };
-      
-      const fechaDesdeFormateada = formatearFecha(dateFrom);
-      const fechaHastaFormateada = formatearFecha(dateTo);
-      
       // Header
       pdf.setFontSize(16);
       pdf.text('REPORTE DE CHEQUES BANCARIOS', 20, 20);
       
       pdf.setFontSize(12);
       pdf.text(`Tipo: ${reportType.toUpperCase()}`, 20, 35);
-      pdf.text(`Periodo: ${fechaDesdeFormateada} al ${fechaHastaFormateada}`, 20, 45);
-      pdf.text(`Fecha: ${fechaFormateada}`, 20, 55);
+      pdf.text(`Periodo: ${dateFrom} al ${dateTo}`, 20, 45);
+      pdf.text(`Fecha: ${new Date().toLocaleDateString('es-ES')}`, 20, 55);
       
       // Estadísticas reactivas
       if (stats) {
@@ -323,7 +231,7 @@ export function Reports({ onNavigate }: ReportsProps) {
       }
       
       // Guardar con nombre descriptivo
-      const fileName = `reporte_${reportType}_${fechaFormateada}.pdf`;
+      const fileName = `reporte_${reportType}_${new Date().toISOString().split('T')[0]}.pdf`;
       pdf.save(fileName);
       
       toast.success('✅ PDF generado correctamente');
@@ -336,175 +244,40 @@ export function Reports({ onNavigate }: ReportsProps) {
     }
   };
 
-  // Función para exportar a Excel (versión original restaurada)
-  const generateReport = async (format: 'excel' | 'pdf') => {
-    setLoading(true);
-    
+  // Función para exportar a Excel
+  const exportToExcel = () => {
     try {
-      console.log('Generando reporte:', { reportType, dateFrom, dateTo, selectedAccount });
+      const stats = getFilteredStats();
+      const workbook = XLSX.utils.book_new();
       
-      // Verificar conexión al servidor
-      try {
-        const testResponse = await fetch('http://localhost:3001/api/cuentas');
-        if (!testResponse.ok) {
-          throw new Error('No se puede conectar al servidor. Verifique que esté ejecutándose.');
-        }
-      } catch (connectionError) {
-        console.error('Error de conexión:', connectionError);
-        toast.error('❌ Error de conexión al servidor. Verifique que esté ejecutándose en el puerto 3001.');
-        setLoading(false);
-        return;
+      // Hoja de estadísticas
+      const statsData = stats?.items.map(item => ({
+        'Concepto': item.label,
+        'Valor': item.value
+      })) || [];
+      
+      const statsSheet = XLSX.utils.json_to_sheet(statsData);
+      XLSX.utils.book_append_sheet(workbook, statsSheet, 'Estadisticas');
+      
+      // Hoja de beneficiarios si aplica
+      if (reportType === 'beneficiarios' && beneficiaryData.length > 0) {
+        const beneficiarySheet = XLSX.utils.json_to_sheet(beneficiaryData);
+        XLSX.utils.book_append_sheet(workbook, beneficiarySheet, 'Beneficiarios');
       }
       
-      // Obtener datos filtrados según la selección
-      let filteredData = [];
-      
-      if (reportType === 'beneficiarios') {
-        try {
-          const response = await fetch('http://localhost:3001/api/reportes/beneficiarios');
-          if (!response.ok) throw new Error('Error al obtener beneficiarios');
-          filteredData = await response.json();
-        } catch (err) {
-          console.error('Error al obtener beneficiarios:', err);
-          toast.error('❌ Error al obtener datos de beneficiarios');
-          setLoading(false);
-          return;
-        }
-      } else {
-        try {
-          // Obtener todas las transacciones
-          const response = await fetch('http://localhost:3001/api/transacciones');
-          if (!response.ok) throw new Error('Error al obtener transacciones');
-          const allData = await response.json();
-          
-          console.log('Total transacciones obtenidas:', allData.length);
-          
-          // Filtrar por tipo
-          if (reportType === 'ingresos') {
-            filteredData = allData.filter((t: any) => t.tipo === 'DEPOSITO');
-          } else if (reportType === 'egresos') {
-            filteredData = allData.filter((t: any) => t.tipo === 'CHEQUE' || t.tipo === 'RETIRO');
-          } else {
-            filteredData = allData; // general
-          }
-          
-          console.log('Después de filtrar por tipo:', filteredData.length);
-          
-          // Filtrar por fechas
-          filteredData = filteredData.filter((t: any) => {
-            const fechaTransaccion = t.fecha_emision || t.fecha_transaccion;
-            if (!fechaTransaccion) return false;
-            
-            const fecha = new Date(fechaTransaccion);
-            const desde = new Date(dateFrom);
-            const hasta = new Date(dateTo);
-            
-            return fecha >= desde && fecha <= hasta;
-          });
-          
-          console.log('Después de filtrar por fechas:', filteredData.length);
-          
-          // Filtrar por cuenta si se seleccionó una específica
-          if (selectedAccount !== 'all') {
-            filteredData = filteredData.filter((t: any) => 
-              t.cuenta_id && t.cuenta_id.toString() === selectedAccount
-            );
-          }
-          
-          console.log('Después de filtrar por cuenta:', filteredData.length);
-        } catch (err) {
-          console.error('Error al obtener transacciones:', err);
-          toast.error('❌ Error al obtener datos de transacciones');
-          setLoading(false);
-          return;
-        }
-      }
-
-      if (filteredData.length === 0) {
-        toast.error('⚠️ No se encontraron datos para los filtros seleccionados');
-        setLoading(false);
-        return;
-      }
-
-      if (format === 'excel') {
-        // Crear Excel profesional con XLSX
-        const workbook = XLSX.utils.book_new();
-        
-        // Función para formatear fechas en español
-        const formatearFechaExcel = (fecha: string) => {
-          const fechaObj = new Date(fecha);
-          return `${fechaObj.getDate().toString().padStart(2, '0')}-${(fechaObj.getMonth() + 1).toString().padStart(2, '0')}-${fechaObj.getFullYear()}`;
-        };
-        
-        // Datos para la hoja principal
-        let excelData = [];
-        
-        if (reportType === 'beneficiarios') {
-          excelData = [
-            ['REPORTE DE BENEFICIARIOS'],
-            [`Fecha: ${new Date().toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit' })}`],
-            [`Período: ${formatearFechaExcel(dateFrom)} al ${formatearFechaExcel(dateTo)}`],
-            [`Total registros: ${filteredData.length}`],
-            [],
-            ['Beneficiario', 'Monto Total', 'Cantidad de Transacciones', 'Porcentaje'],
-            ...filteredData.map((item: any) => [
-              item.name,
-              parseFloat(item.amount),
-              item.count,
-              parseFloat(item.percentage)
-            ])
-          ];
-        } else {
-          const totalEgresos = filteredData.filter((t: any) => t.tipo === 'CHEQUE').reduce((sum: number, t: any) => sum + parseFloat(t.monto), 0);
-          const totalIngresos = filteredData.filter((t: any) => t.tipo === 'DEPOSITO').reduce((sum: number, t: any) => sum + parseFloat(t.monto), 0);
-          
-          excelData = [
-            [`REPORTE DE ${reportType.toUpperCase()}`],
-            [`Fecha: ${new Date().toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit' })}`],
-            [`Período: ${formatearFechaExcel(dateFrom)} al ${formatearFechaExcel(dateTo)}`],
-            [`Total registros: ${filteredData.length}`],
-            [`Total Ingresos: Q${totalIngresos.toLocaleString('es-GT', {minimumFractionDigits: 2})}`],
-            [`Total Egresos: Q${totalEgresos.toLocaleString('es-GT', {minimumFractionDigits: 2})}`],
-            [`Balance Neto: Q${(totalIngresos - totalEgresos).toLocaleString('es-GT', {minimumFractionDigits: 2})}`],
-            [],
-            ['Fecha', 'Tipo', 'Número', 'Cuenta', 'Beneficiario', 'Monto', 'Estado', 'Concepto'],
-            ...filteredData.map((t: any) => [
-              new Date(t.fecha_emision || t.fecha_transaccion).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit' }),
-              t.tipo,
-              t.numero_cheque || 'N/A',
-              t.cuenta,
-              t.beneficiario,
-              parseFloat(t.monto),
-              t.estado,
-              t.concepto || t.descripcion || ''
-            ])
-          ];
-        }
-        
-        const worksheet = XLSX.utils.aoa_to_sheet(excelData);
-        
-        // Aplicar estilos (ancho de columnas)
-        const columnWidths = reportType === 'beneficiarios' 
-          ? [{ wch: 30 }, { wch: 15 }, { wch: 20 }, { wch: 15 }]
-          : [{ wch: 12 }, { wch: 10 }, { wch: 15 }, { wch: 25 }, { wch: 25 }, { wch: 15 }, { wch: 12 }, { wch: 30 }];
-        
-        worksheet['!cols'] = columnWidths;
-        
-        // Agregar la hoja al libro
-        XLSX.utils.book_append_sheet(workbook, worksheet, `Reporte_${reportType}`);
-        
-        // Descargar el archivo
-        const fileName = `Reporte_${reportType}_${new Date().toISOString().split('T')[0]}.xlsx`;
-        XLSX.writeFile(workbook, fileName);
-        
-        toast.success('📊 Reporte Excel exportado correctamente');
+      // Hoja de datos mensuales
+      if (monthlyData.length > 0) {
+        const monthlySheet = XLSX.utils.json_to_sheet(monthlyData);
+        XLSX.utils.book_append_sheet(workbook, monthlySheet, 'Mensuales');
       }
       
+      const fileName = `reporte_${reportType}_${new Date().toISOString().split('T')[0]}.xlsx`;
+      XLSX.writeFile(workbook, fileName);
+      
+      toast.success('✅ Excel generado correctamente');
     } catch (error) {
-      console.error('Error al generar reporte:', error);
-      toast.error('❌ Error al generar el reporte');
-    } finally {
-      setLoading(false);
+      console.error('Error generating Excel:', error);
+      toast.error('❌ Error al generar Excel');
     }
   };
 
@@ -516,27 +289,6 @@ export function Reports({ onNavigate }: ReportsProps) {
   };
 
   const CHART_COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#8dd1e1', '#d084d0'];
-
-  // Datos de muestra para cuando no hay datos reales
-  const sampleMonthlyData = [
-    { month: 'Ene', totalIngresos: 15000, totalEgresos: 12000 },
-    { month: 'Feb', totalIngresos: 18000, totalEgresos: 14000 },
-    { month: 'Mar', totalIngresos: 22000, totalEgresos: 16000 },
-    { month: 'Abr', totalIngresos: 19000, totalEgresos: 15000 },
-    { month: 'May', totalIngresos: 25000, totalEgresos: 18000 },
-    { month: 'Jun', totalIngresos: 23000, totalEgresos: 17000 }
-  ];
-
-  const sampleStatusData = [
-    { name: 'Cobrado', value: 45, color: '#82ca9d' },
-    { name: 'Pendiente', value: 23, color: '#ffc658' },
-    { name: 'Anulado', value: 8, color: '#ff7300' },
-    { name: 'En Proceso', value: 12, color: '#8884d8' }
-  ];
-
-  // Usar datos reales o de muestra
-  const displayMonthlyData = monthlyData.length > 0 ? monthlyData : sampleMonthlyData;
-  const displayStatusData = statusData.length > 0 ? statusData : sampleStatusData;
 
   if (apiLoading) {
     return (
@@ -654,87 +406,34 @@ export function Reports({ onNavigate }: ReportsProps) {
               {loading ? 'Generando...' : 'Generar PDF'}
             </Button>
             
-            <Button onClick={() => generateReport('excel')} disabled={loading} variant="outline">
+            <Button onClick={exportToExcel} variant="outline">
               <Download className="h-4 w-4 mr-2" />
-              {loading ? 'Exportando...' : 'Exportar Excel'}
+              Exportar Excel
             </Button>
           </div>
         </CardContent>
       </Card>
 
-      {/* Resumen de Estadísticas Generales */}
-      {generalStats && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <Card className="border border-gray-200 shadow-md">
-            <CardHeader className="pb-4">
-              <CardTitle className="text-lg font-semibold flex items-center gap-2 text-gray-700">
-                <BarChart3 className="h-5 w-5" />
-                Total Movimientos
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold mb-2 text-gray-900">
-                {generalStats.totalMovimientos.toLocaleString('es-GT')}
-              </div>
-              <p className="text-gray-500 text-sm">En el período seleccionado</p>
-            </CardContent>
-          </Card>
-
-          <Card className="border border-red-200 shadow-md bg-red-50">
-            <CardHeader className="pb-4">
-              <CardTitle className="text-lg font-semibold flex items-center gap-2 text-red-700">
-                <TrendingUp className="h-5 w-5" />
-                Total Egresos
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-xl font-bold mb-2 text-red-600">
-                -{formatCurrency(generalStats.totalEgresos)}
-              </div>
-              <p className="text-red-500 text-sm">Cheques emitidos</p>
-            </CardContent>
-          </Card>
-
-          <Card className="border border-green-200 shadow-md bg-green-50">
-            <CardHeader className="pb-4">
-              <CardTitle className="text-lg font-semibold flex items-center gap-2 text-green-700">
-                <TrendingUp className="h-5 w-5" />
-                Total Ingresos
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-xl font-bold mb-2 text-green-600">
-                +{formatCurrency(generalStats.totalIngresos)}
-              </div>
-              <p className="text-green-500 text-sm">Depósitos recibidos</p>
-            </CardContent>
-          </Card>
-
-          <Card className={`border shadow-md ${
-            (generalStats.totalIngresos - generalStats.totalEgresos) >= 0
-              ? 'border-green-200 bg-green-50'
-              : 'border-orange-200 bg-orange-50'
-          }`}>
-            <CardHeader className="pb-4">
-              <CardTitle className={`text-lg font-semibold flex items-center gap-2 ${
-                (generalStats.totalIngresos - generalStats.totalEgresos) >= 0 ? 'text-green-700' : 'text-orange-700'
-              }`}>
-                <PieChart className="h-5 w-5" />
-                Flujo Neto
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className={`text-xl font-bold mb-2 ${
-                (generalStats.totalIngresos - generalStats.totalEgresos) >= 0 ? 'text-green-600' : 'text-orange-600'
-              }`}>
-                {(generalStats.totalIngresos - generalStats.totalEgresos) >= 0 ? '+' : ''}{formatCurrency(generalStats.totalIngresos - generalStats.totalEgresos)}
-              </div>
-              <p className={`text-sm ${(generalStats.totalIngresos - generalStats.totalEgresos) >= 0 ? 'text-green-500' : 'text-orange-500'}`}>
-                {(generalStats.totalIngresos - generalStats.totalEgresos) >= 0 ? 'Balance positivo' : 'Balance negativo'}
-              </p>
-            </CardContent>
-          </Card>
-        </div>
+      {/* Estadísticas Reactivas */}
+      {stats && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{stats.titulo}</CardTitle>
+            <CardDescription>Datos que se actualizan según el filtro seleccionado</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {stats.items.map((item, index) => (
+                <Card key={index} className="border-l-4 border-l-blue-500">
+                  <CardContent className="p-4">
+                    <div className="text-sm text-muted-foreground">{item.label}</div>
+                    <div className={`text-2xl font-bold ${item.color}`}>{item.value}</div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Gráficos y Reportes */}
@@ -754,7 +453,7 @@ export function Reports({ onNavigate }: ReportsProps) {
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={displayMonthlyData}>
+                  <LineChart data={monthlyData}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="month" />
                     <YAxis />
@@ -773,7 +472,7 @@ export function Reports({ onNavigate }: ReportsProps) {
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={displayMonthlyData}>
+                  <BarChart data={monthlyData}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="month" />
                     <YAxis />
@@ -826,7 +525,7 @@ export function Reports({ onNavigate }: ReportsProps) {
                 <ResponsiveContainer width="100%" height={300}>
                   <RechartsPieChart>
                     <Pie
-                      data={displayStatusData}
+                      data={statusData}
                       cx="50%"
                       cy="50%"
                       labelLine={false}
@@ -835,7 +534,7 @@ export function Reports({ onNavigate }: ReportsProps) {
                       fill="#8884d8"
                       dataKey="value"
                     >
-                      {displayStatusData.map((entry, index) => (
+                      {statusData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.color || CHART_COLORS[index % CHART_COLORS.length]} />
                       ))}
                     </Pie>
@@ -852,7 +551,7 @@ export function Reports({ onNavigate }: ReportsProps) {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {displayStatusData.map((status, index) => (
+                  {statusData.map((status, index) => (
                     <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
                       <div className="flex items-center gap-3">
                         <div

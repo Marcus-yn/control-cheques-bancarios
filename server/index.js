@@ -242,6 +242,90 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
+// Endpoint para crear depósitos
+app.post('/api/depositos', async (req, res) => {
+    const { cuenta_id, monto, concepto, depositante, tipo } = req.body;
+    
+    try {
+        // Validaciones
+        if (!cuenta_id || !monto || !concepto) {
+            return res.status(400).json({ 
+                error: 'Faltan campos requeridos',
+                required: ['cuenta_id', 'monto', 'concepto']
+            });
+        }
+
+        if (parseFloat(monto) <= 0) {
+            return res.status(400).json({ 
+                error: 'El monto debe ser mayor a 0'
+            });
+        }
+
+        const pool = await connectDB();
+        
+        // Verificar que la cuenta existe
+        const cuentaResult = await pool.request()
+            .input('cuenta_id', sql.Int, cuenta_id)
+            .query('SELECT id, nombre, saldo_actual FROM CuentasBancarias WHERE id = @cuenta_id AND activa = 1');
+        
+        if (cuentaResult.recordset.length === 0) {
+            return res.status(404).json({ 
+                error: 'Cuenta bancaria no encontrada o inactiva'
+            });
+        }
+
+        const cuenta = cuentaResult.recordset[0];
+
+        // Crear la transacción de depósito
+        const insertResult = await pool.request()
+            .input('cuenta_id', sql.Int, cuenta_id)
+            .input('tipo', sql.VarChar(50), 'DEPOSITO')
+            .input('monto', sql.Decimal(18, 2), parseFloat(monto))
+            .input('fecha_transaccion', sql.DateTime, new Date())
+            .input('beneficiario', sql.VarChar(200), depositante || 'Depósito directo')
+            .input('concepto', sql.VarChar(500), concepto)
+            .input('estado', sql.VarChar(50), 'COMPLETADO')
+            .input('tipo_deposito', sql.VarChar(50), tipo || 'efectivo')
+            .input('referencia', sql.VarChar(100), `DEP-${Date.now()}`)
+            .query(`
+                INSERT INTO Transacciones 
+                (cuenta_id, tipo, monto, fecha_transaccion, beneficiario, concepto, estado, tipo_deposito, referencia)
+                OUTPUT INSERTED.id
+                VALUES 
+                (@cuenta_id, @tipo, @monto, @fecha_transaccion, @beneficiario, @concepto, @estado, @tipo_deposito, @referencia)
+            `);
+
+        const transaccionId = insertResult.recordset[0].id;
+        
+        // Actualizar el saldo de la cuenta
+        const nuevoSaldo = cuenta.saldo_actual + parseFloat(monto);
+        await pool.request()
+            .input('cuenta_id', sql.Int, cuenta_id)
+            .input('nuevo_saldo', sql.Decimal(18, 2), nuevoSaldo)
+            .query('UPDATE CuentasBancarias SET saldo_actual = @nuevo_saldo WHERE id = @cuenta_id');
+
+        res.json({
+            success: true,
+            message: 'Depósito registrado correctamente',
+            data: {
+                transaccion_id: transaccionId,
+                cuenta: cuenta.nombre,
+                monto: parseFloat(monto),
+                saldo_anterior: cuenta.saldo_actual,
+                saldo_nuevo: nuevoSaldo,
+                fecha: new Date().toISOString()
+            }
+        });
+
+    } catch (err) {
+        console.error('Error al crear depósito:', err);
+        res.status(500).json({ 
+            error: 'Error al registrar el depósito',
+            details: err.message 
+        });
+    }
+});
+
 // Importar y usar el endpoint de cheques
 
 // Endpoints de cheques y chequeras

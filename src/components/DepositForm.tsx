@@ -99,6 +99,8 @@ export function DepositForm({ onNavigate }: DepositFormProps) {
         tipo: depositType || 'efectivo'
       };
 
+      console.log('Enviando depósito:', depositData);
+
       const response = await fetch('http://localhost:3001/api/depositos', {
         method: 'POST',
         headers: {
@@ -108,11 +110,15 @@ export function DepositForm({ onNavigate }: DepositFormProps) {
       });
 
       if (!response.ok) {
-        throw new Error('Error al registrar el depósito');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Error al registrar el depósito');
       }
 
       const result = await response.json();
-      toast.success('Depósito registrado correctamente');
+      console.log('Resultado:', result);
+      
+      toast.success(`✅ Depósito de ${formatCurrency(parseFloat(amount))} registrado correctamente`);
+      toast.success(`💰 Nuevo saldo: ${formatCurrency(result.data.saldo_nuevo)}`);
       
       // Limpiar formulario
       setSelectedAccount('');
@@ -121,10 +127,14 @@ export function DepositForm({ onNavigate }: DepositFormProps) {
       setConcept('');
       setDepositType('');
       
-      onNavigate('dashboard');
+      // Esperar un momento antes de navegar para que el usuario vea el mensaje
+      setTimeout(() => {
+        onNavigate('dashboard');
+      }, 2000);
+      
     } catch (err) {
       console.error('Error:', err);
-      toast.error('Error al registrar el depósito');
+      toast.error(`❌ ${err instanceof Error ? err.message : 'Error al registrar el depósito'}`);
     } finally {
       setLoading(false);
     }
