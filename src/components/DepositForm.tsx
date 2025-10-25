@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -13,13 +13,17 @@ interface DepositFormProps {
   onNavigate: (screen: string) => void;
 }
 
-const mockAccounts = [
-  { id: '1', name: 'Cuenta Principal - BAM', balance: 387500, currency: 'GTQ' },
-  { id: '2', name: 'Cuenta Operativa - BI', balance: 125000, currency: 'GTQ' },
-  { id: '3', name: 'Cuenta Dólares - BAM', balance: 45000, currency: 'USD' }
-];
+interface Account {
+  id: number;
+  nombre: string;
+  banco: string;
+  numero: string;
+  saldo_actual: number;
+  moneda: string;
+}
 
 export function DepositForm({ onNavigate }: DepositFormProps) {
+  const [accounts, setAccounts] = useState<Account[]>([]);
   const [selectedAccount, setSelectedAccount] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [amount, setAmount] = useState('');
@@ -27,8 +31,28 @@ export function DepositForm({ onNavigate }: DepositFormProps) {
   const [concept, setConcept] = useState('');
   const [depositType, setDepositType] = useState('');
   const [loading, setLoading] = useState(false);
+  const [loadingAccounts, setLoadingAccounts] = useState(true);
 
-  const currentAccount = mockAccounts.find(acc => acc.id === selectedAccount);
+  // Cargar cuentas reales desde la API
+  useEffect(() => {
+    const fetchAccounts = async () => {
+      try {
+        const response = await fetch('http://localhost:3001/api/cuentas');
+        if (!response.ok) throw new Error('Error al cargar cuentas');
+        const data = await response.json();
+        setAccounts(data);
+      } catch (err) {
+        console.error('Error:', err);
+        toast.error('Error al cargar las cuentas');
+      } finally {
+        setLoadingAccounts(false);
+      }
+    };
+
+    fetchAccounts();
+  }, []);
+
+  const currentAccount = accounts.find(acc => acc.id.toString() === selectedAccount);
 
   const formatCurrency = (amount: number, currency: string = 'GTQ') => {
     return new Intl.NumberFormat('es-GT', {
@@ -41,7 +65,7 @@ export function DepositForm({ onNavigate }: DepositFormProps) {
     if (!currentAccount || !amount) return null;
     const numAmount = parseFloat(amount);
     if (isNaN(numAmount)) return null;
-    return currentAccount.balance + numAmount;
+    return currentAccount.saldo_actual + numAmount;
   };
 
   const validateForm = () => {
@@ -66,12 +90,44 @@ export function DepositForm({ onNavigate }: DepositFormProps) {
     
     setLoading(true);
     
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      const depositData = {
+        cuenta_id: parseInt(selectedAccount),
+        monto: parseFloat(amount),
+        concepto: concept,
+        depositante: reference || 'No especificado',
+        tipo: depositType || 'efectivo'
+      };
+
+      const response = await fetch('http://localhost:3001/api/depositos', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(depositData),
+      });
+
+      if (!response.ok) {
+        throw new Error('Error al registrar el depósito');
+      }
+
+      const result = await response.json();
       toast.success('Depósito registrado correctamente');
-      setLoading(false);
+      
+      // Limpiar formulario
+      setSelectedAccount('');
+      setAmount('');
+      setReference('');
+      setConcept('');
+      setDepositType('');
+      
       onNavigate('dashboard');
-    }, 1500);
+    } catch (err) {
+      console.error('Error:', err);
+      toast.error('Error al registrar el depósito');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const newBalance = calculateNewBalance();
@@ -119,12 +175,12 @@ export function DepositForm({ onNavigate }: DepositFormProps) {
                         <SelectValue placeholder="Seleccionar cuenta" />
                       </SelectTrigger>
                       <SelectContent>
-                        {mockAccounts.map((account) => (
-                          <SelectItem key={account.id} value={account.id}>
+                        {accounts.map((account) => (
+                          <SelectItem key={account.id} value={account.id.toString()}>
                             <div className="flex flex-col">
-                              <span>{account.name}</span>
+                              <span>{account.nombre} - {account.banco}</span>
                               <span className="text-sm text-muted-foreground">
-                                Saldo: {formatCurrency(account.balance, account.currency)}
+                                Saldo: {formatCurrency(account.saldo_actual, account.moneda)}
                               </span>
                             </div>
                           </SelectItem>
@@ -164,7 +220,7 @@ export function DepositForm({ onNavigate }: DepositFormProps) {
                     <Label htmlFor="amount">Monto *</Label>
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground">
-                        {currentAccount?.currency === 'USD' ? '$' : 'Q'}
+                        {currentAccount?.moneda === 'USD' ? '$' : 'Q'}
                       </span>
                       <Input
                         id="amount"
@@ -250,7 +306,7 @@ export function DepositForm({ onNavigate }: DepositFormProps) {
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-muted-foreground">Saldo actual:</span>
                     <span className="font-mono">
-                      {formatCurrency(currentAccount.balance, currentAccount.currency)}
+                      {formatCurrency(currentAccount.saldo_actual, currentAccount.moneda)}
                     </span>
                   </div>
                   
@@ -259,7 +315,7 @@ export function DepositForm({ onNavigate }: DepositFormProps) {
                       <div className="flex justify-between items-center">
                         <span className="text-sm text-muted-foreground">Monto depósito:</span>
                         <span className="font-mono text-green-600">
-                          +{formatCurrency(parseFloat(amount), currentAccount.currency)}
+                          +{formatCurrency(parseFloat(amount), currentAccount.moneda)}
                         </span>
                       </div>
                       
@@ -267,7 +323,7 @@ export function DepositForm({ onNavigate }: DepositFormProps) {
                         <div className="flex justify-between items-center">
                           <span className="font-medium">Saldo después:</span>
                           <span className="font-mono text-green-600">
-                            {newBalance !== null && formatCurrency(newBalance, currentAccount.currency)}
+                            {newBalance !== null && formatCurrency(newBalance, currentAccount.moneda)}
                           </span>
                         </div>
                       </div>
