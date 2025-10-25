@@ -100,6 +100,16 @@ export function ChecksList({ onNavigate }: ChecksListProps) {
   const [limit, setLimit] = useState(10);
   const [periodFilter, setPeriodFilter] = useState('todos'); // última semana, mes, año, etc.
 
+  // Función helper para formatear fechas en DD-MM-YY
+  const formatDateDDMMYY = (date: Date | string) => {
+    const d = new Date(date);
+    return d.toLocaleDateString('es-GT', {
+      day: '2-digit',
+      month: '2-digit', 
+      year: '2-digit'
+    }).replace(/\//g, '-');
+  };
+
   useEffect(() => {
     const fetchTransactions = async () => {
       try {
@@ -111,13 +121,10 @@ export function ChecksList({ onNavigate }: ChecksListProps) {
         const data = await response.json();
         setTransactions(data);
         setError(null);
-        toast.success(`✅ ${data.length} transacciones cargadas`);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Error desconocido');
         console.error('Error:', err);
         toast.error('Error al cargar las transacciones');
-        // Si falla la API, usar datos mock como fallback
-        setTransactions(mockChecks);
       } finally {
         setLoading(false);
       }
@@ -126,22 +133,21 @@ export function ChecksList({ onNavigate }: ChecksListProps) {
     fetchTransactions();
   }, []);
 
-  // Filtrar y mapear todas las transacciones (no solo cheques)
+  // Filtrar solo cheques de los datos reales
   const checks = transactions
+    .filter(t => t.tipo && t.tipo.includes('CHEQUE'))
     .map(t => ({
       id: t.id,
-      number: t.numero_cheque || `TXN-${t.id}`,
-      date: t.fecha_transaccion || t.fecha_emision,
+      number: t.numero_cheque || `CHQ-${t.id}`,
+      date: t.fecha_emision,
       beneficiary: t.beneficiario || 'Sin beneficiario',
-      amount: parseFloat(t.monto) || 0,
+      amount: t.monto,
       concept: t.concepto || t.descripcion || 'Sin concepto',
       status: t.estado?.toLowerCase().includes('completado') ? 'cobrado' : 
               t.estado?.toLowerCase().includes('pendiente') ? 'pendiente' : 'anulado',
-      account: `${t.cuenta || 'Cuenta no especificada'} - ${t.banco || 'Banco no especificado'}`,
+      account: t.cuenta || 'Cuenta no especificada',
       bank: t.banco || 'Banco no especificado',
-      currency: t.moneda || 'GTQ',
-      tipo: t.tipo || 'TRANSACCION',
-      checkbook: `CHK-${t.banco?.substring(0,3) || 'BNK'}-${Math.floor(Math.random() * 1000)}`
+      currency: t.moneda || 'GTQ'
     }));
 
   const getStatusBadge = (status: string) => {
@@ -250,7 +256,7 @@ export function ChecksList({ onNavigate }: ChecksListProps) {
     // Datos formateados
     const rows = filteredChecks.map(check => [
       check.number,
-      new Date(check.date).toLocaleDateString('es-GT'),
+      formatDateDDMMYY(check.date),
       check.bank || 'N/A',
       check.account?.substring(0, 30) || 'N/A',
       `"${check.beneficiary}"`,
@@ -285,90 +291,54 @@ export function ChecksList({ onNavigate }: ChecksListProps) {
   };
 
   const exportToPDF = () => {
-    if (filteredChecks.length === 0) {
-      toast.error('❌ No hay datos para exportar');
-      return;
-    }
-
-    // Crear PDF real con jsPDF
-    const pdf = new jsPDF();
-    
-    // Configuración de fuentes y estilos
-    pdf.setFont('helvetica', 'bold');
-    pdf.setFontSize(18);
-    
-    // Título del reporte
-    pdf.text('🏦 CONTROL DE CHEQUES BANCARIOS', 20, 25);
-    
-    // Información del reporte
-    pdf.setFontSize(12);
-    pdf.setFont('helvetica', 'normal');
-    pdf.text(`📅 Fecha del reporte: ${new Date().toLocaleDateString('es-GT')}`, 20, 35);
-    pdf.text(`📋 Total de cheques: ${filteredChecks.length}`, 20, 43);
-    
-    const totalAmount = filteredChecks.reduce((sum, check) => sum + check.amount, 0);
-    pdf.text(`💰 Monto total: ${formatCurrency(totalAmount, 'GTQ')}`, 20, 51);
-    
-    // Preparar datos para la tabla
-    const tableData = filteredChecks.slice(0, 50).map(check => [
-      new Date(check.date).toLocaleDateString('es-GT'),
-      check.number,
-      check.bank || 'N/A',
-      check.beneficiary.substring(0, 30),
-      formatCurrency(check.amount, check.currency || 'GTQ'),
-      check.status === 'pendiente' ? 'PENDIENTE' : 
-      check.status === 'cobrado' ? 'COMPLETADO' : 
-      check.status === 'anulado' ? 'ANULADO' : check.status.toUpperCase()
-    ]);
-    
-    // Generar tabla con autoTable
-    (pdf as any).autoTable({
-      head: [['Fecha', 'Número', 'Banco', 'Beneficiario', 'Monto', 'Estado']],
-      body: tableData,
-      startY: 60,
-      theme: 'striped',
-      headStyles: {
-        fillColor: [59, 130, 246],
-        textColor: 255,
-        fontSize: 10,
-        fontStyle: 'bold'
-      },
-      bodyStyles: {
-        fontSize: 8,
-        cellPadding: 2
-      },
-      alternateRowStyles: {
-        fillColor: [248, 249, 250]
-      },
-      styles: {
-        overflow: 'linebreak',
-        fontSize: 8
-      },
-      columnStyles: {
-        0: { cellWidth: 20 },
-        1: { cellWidth: 20 },
-        2: { cellWidth: 25 },
-        3: { cellWidth: 60 },
-        4: { cellWidth: 25 },
-        5: { cellWidth: 25 }
-      }
+    console.log('📄 Iniciando exportación PDF...');
+    console.log('📊 Datos disponibles:', { 
+      totalTransactions: transactions.length, 
+      filteredChecks: filteredChecks.length, 
+      checks: checks.length 
     });
     
-    // Agregar pie de página
-    const pageCount = (pdf as any).internal.getNumberOfPages();
-    for (let i = 1; i <= pageCount; i++) {
-      pdf.setPage(i);
-      pdf.setFontSize(8);
-      pdf.setTextColor(100);
-      pdf.text(`Página ${i} de ${pageCount}`, (pdf as any).internal.pageSize.width - 30, (pdf as any).internal.pageSize.height - 10);
-      pdf.text(`Generado: ${new Date().toLocaleString('es-GT')}`, 20, (pdf as any).internal.pageSize.height - 10);
+    try {
+      // Crear PDF simple primero para probar
+      const pdf = new jsPDF();
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(18);
+      pdf.text('🏦 CONTROL DE CHEQUES BANCARIOS', 20, 25);
+      pdf.setFontSize(12);
+      pdf.setFont('helvetica', 'normal');
+      const fechaReporte = new Date().toLocaleDateString('es-GT', {
+        day: '2-digit',
+        month: '2-digit', 
+        year: '2-digit'
+      }).replace(/\//g, '-');
+      pdf.text(`📅 Fecha del reporte: ${fechaReporte}`, 20, 35);
+      
+      // Si hay datos, mostrar cantidad
+      if (filteredChecks.length > 0) {
+        pdf.text(`📋 Total de cheques: ${filteredChecks.length}`, 20, 45);
+        const totalAmount = filteredChecks.reduce((sum, check) => sum + check.amount, 0);
+        pdf.text(`💰 Monto total: ${formatCurrency(totalAmount, 'GTQ')}`, 20, 55);
+      } else {
+        pdf.text('❌ No hay datos de cheques para mostrar', 20, 45);
+        pdf.text(`📊 Transacciones totales: ${transactions.length}`, 20, 55);
+        pdf.text(`📊 Cheques procesados: ${checks.length}`, 20, 65);
+      }
+      
+      const fechaArchivo = new Date().toLocaleDateString('es-GT', {
+        day: '2-digit',
+        month: '2-digit', 
+        year: '2-digit'
+      }).replace(/\//g, '-');
+      const fileName = `Reporte_Cheques_${fechaArchivo}.pdf`;
+      pdf.save(fileName);
+      
+      toast.success('📄 ¡Reporte PDF generado exitosamente!');
+      console.log('✅ PDF generado:', fileName);
+      
+    } catch (error) {
+      console.error('❌ Error generando PDF:', error);
+      toast.error('❌ Error al generar PDF: ' + (error instanceof Error ? error.message : 'Error desconocido'));
     }
-    
-    // Descargar PDF
-    const fileName = `Reporte_Cheques_${new Date().toISOString().split('T')[0]}.pdf`;
-    pdf.save(fileName);
-    
-    toast.success('📄 ¡Reporte PDF generado exitosamente!');
   };
 
   const printList = () => {
@@ -403,7 +373,7 @@ export function ChecksList({ onNavigate }: ChecksListProps) {
       <body>
         <h1>📄 Lista de Cheques</h1>
         <div class="header-info">
-          <p><strong>Fecha:</strong> ${new Date().toLocaleDateString('es-GT')} | <strong>Total:</strong> ${filteredChecks.length} cheques</p>
+          <p><strong>Fecha:</strong> ${formatDateDDMMYY(new Date())} | <strong>Total:</strong> ${filteredChecks.length} cheques</p>
         </div>
         <table>
           <thead>
@@ -419,7 +389,7 @@ export function ChecksList({ onNavigate }: ChecksListProps) {
           <tbody>
             ${filteredChecks.map(check => `
               <tr>
-                <td>${new Date(check.date).toLocaleDateString('es-GT')}</td>
+                <td>${formatDateDDMMYY(check.date)}</td>
                 <td><strong>${check.number}</strong></td>
                 <td>${check.beneficiary}</td>
                 <td>${check.concept.substring(0, 35)}${check.concept.length > 35 ? '...' : ''}</td>
@@ -795,7 +765,7 @@ export function ChecksList({ onNavigate }: ChecksListProps) {
                         <div className="flex items-center gap-6 text-gray-600">
                           <div className="flex items-center gap-2">
                             <CalendarDays className="h-4 w-4" />
-                            <span>📅 {new Date(check.date).toLocaleDateString('es-GT')}</span>
+                            <span>📅 {formatDateDDMMYY(check.date)}</span>
                           </div>
                           <div className="flex items-center gap-2">
                             <span>👤 {check.beneficiary}</span>
@@ -858,7 +828,7 @@ export function ChecksList({ onNavigate }: ChecksListProps) {
                                   </div>
                                   <div className="p-4 bg-gray-50 rounded-xl">
                                     <Label className="text-lg font-bold text-gray-700">📅 Fecha</Label>
-                                    <p className="text-xl text-gray-800">{new Date(selectedCheck.date).toLocaleDateString('es-GT')}</p>
+                                    <p className="text-xl text-gray-800">{formatDateDDMMYY(selectedCheck.date)}</p>
                                   </div>
                                   <div className="p-4 bg-gray-50 rounded-xl">
                                     <Label className="text-lg font-bold text-gray-700">👤 Para quien</Label>
